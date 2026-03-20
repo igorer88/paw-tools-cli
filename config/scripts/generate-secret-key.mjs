@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
+import crypto from 'node:crypto'
 
-const secretKey = crypto.randomBytes(32).toString('hex');
-console.log(secretKey);
+const _secretKey = crypto.randomBytes(32).toString('hex')

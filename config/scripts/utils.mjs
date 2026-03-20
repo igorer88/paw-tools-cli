@@ -1,6 +1,6 @@
-import readline from 'node:readline'
 import { exec } from 'node:child_process'
 import fs from 'node:fs'
+import readline from 'node:readline'
 
 export const rl = readline.createInterface({
   input: process.stdin,
@@ -16,8 +16,8 @@ export const rl = readline.createInterface({
  * @returns {Promise<string>} - The user's input or the current value.
  */
 export const askQuestion = (query, currentValue) =>
-  new Promise(resolve => {
-    rl.question(`${query} (current: ${currentValue}): `, answer => {
+  new Promise((resolve) => {
+    rl.question(`${query} (current: ${currentValue}): `, (answer) => {
       resolve(answer.trim() === '' ? currentValue : answer)
     })
   })
@@ -28,9 +28,9 @@ export const askQuestion = (query, currentValue) =>
  * @param {string} query - The yes/no question to ask the user.
  * @returns {Promise<boolean>} - True if the user answers 'y', false otherwise.
  */
-export const askYesNoQuestion = query =>
-  new Promise(resolve => {
-    rl.question(`${query} (y/n): `, answer => {
+export const askYesNoQuestion = (query) =>
+  new Promise((resolve) => {
+    rl.question(`${query} (y/n): `, (answer) => {
       resolve(answer.trim().toLowerCase() === 'y')
     })
   })
@@ -42,13 +42,13 @@ export const askYesNoQuestion = query =>
  */
 export const getGitAuthor = () =>
   new Promise((resolve, reject) => {
-    exec('git config --get user.name', (error, stdout, stderr) => {
+    exec('git config --get user.name', (error, stdout, _stderr) => {
       if (error) {
         reject(error)
         return
       }
       const name = stdout.trim()
-      exec('git config --get user.email', (error, stdout, stderr) => {
+      exec('git config --get user.email', (error, stdout, _stderr) => {
         if (error) {
           reject(error)
           return
@@ -65,9 +65,9 @@ export const getGitAuthor = () =>
  * @param {string} packageManager - The package manager to check (e.g., 'pnpm', 'npm', 'yarn').
  * @returns {Promise<boolean>} - True if the package manager is installed, false otherwise.
  */
-export const isPackageManagerInstalled = packageManager => {
-  return new Promise(resolve => {
-    exec(`${packageManager} --version`, error => {
+export const isPackageManagerInstalled = (packageManager) => {
+  return new Promise((resolve) => {
+    exec(`${packageManager} --version`, (error) => {
       resolve(!error)
     })
   })
@@ -86,21 +86,17 @@ export const installDependencies = (packageManager = 'pnpm') => {
   return new Promise((resolve, reject) => {
     if (packageManager !== 'pnpm' && fs.existsSync('pnpm-lock.yaml')) {
       fs.unlinkSync('pnpm-lock.yaml')
-      console.log('Removed pnpm-lock.yaml')
     }
 
-    exec(command, (error, stdout, stderr) => {
+    exec(command, (error, _stdout, stderr) => {
       if (error) {
-        console.error(`Error installing dependencies: ${error.message}`)
         reject(error)
         return
       }
       if (stderr) {
-        console.error(`stderr: ${stderr}`)
         reject(new Error(stderr))
         return
       }
-      console.log(`stdout: ${stdout}`)
       resolve(packageManager)
     })
   })

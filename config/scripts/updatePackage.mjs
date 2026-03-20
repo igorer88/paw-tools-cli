@@ -11,12 +11,7 @@ import yaml from 'yaml'
  * @param {string} params.version - The project version.
  * @param {string} params.author - The project author.
  */
-export const updatePackageJson = async ({
-  name,
-  description,
-  version,
-  author
-}) => {
+export const updatePackageJson = async ({ name, description, version, author }) => {
   try {
     const packageJsonPath = './package.json'
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
@@ -24,14 +19,8 @@ export const updatePackageJson = async ({
     packageJson.description = description || packageJson.description
     packageJson.version = version || packageJson.version
     packageJson.author = author || packageJson.author
-    fs.writeFileSync(
-      packageJsonPath,
-      JSON.stringify(packageJson, null, 2) + '\n'
-    )
-    console.log('Updated package.json successfully!\n')
-  } catch (error) {
-    console.error(`Error updating package.json: ${error.message}`)
-  }
+    fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`)
+  } catch (_error) {}
 }
 
 /**
@@ -58,12 +47,9 @@ export const updateDockerCompose = (
     const composeFile = yaml.parseDocument(fileContents)
 
     const services = composeFile.get('services')
-    if (services && services.has('api')) {
+    if (services?.has('api')) {
       const service = services.get('api')
       const dockerImgVersion = `${name}:${dockerImageVersion}`
-      console.log(
-        `Updating docker-compose.yml for service: ${serviceName} with image: ${dockerImgVersion}`
-      )
       service.set('container_name', name)
       service.set('image', dockerImgVersion)
       services.delete('api')
@@ -90,8 +76,5 @@ export const updateDockerCompose = (
     }
 
     fs.writeFileSync(dockerComposePath, composeFile.toString())
-    console.log('Updated docker-compose.yml successfully!')
-  } catch (error) {
-    console.error(`Error updating ${dockerComposePath}: ${error.message}`)
-  }
+  } catch (_error) {}
 }

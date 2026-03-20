@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { ClientException, InternalException } from './base.error'
-import { FormattedError } from './error.interface'
+import type { FormattedError } from './error.interface'
 
 @Injectable()
 export class ErrorService {
