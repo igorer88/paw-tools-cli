@@ -1,0 +1,8 @@
+{
+  "app": {
+    "environment": "development",
+    "debug": false,
+    "secretKey": "",
+    "loggerLevels": ["log", "error", "warn", "debug", "verbose", "fatal"]
+  }
+}

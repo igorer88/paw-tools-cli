@@ -1,0 +1,50 @@
+services:
+  api:
+    restart: unless-stopped
+    container_name: api
+    # image: ghcr.io/your-username/your-repo:your-tag  # Image from GitHub Container Registry
+    image: api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: 24-alpine
+        PNPM_REGISTRY: "https://registry.npmjs.org/"
+      target: ${BUILD_STAGE}
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    networks:
+      - net
+    depends_on:
+      - database
+    # entrypoint: ["sh", "-c", "infisical run"]
+
+  database:
+    image: postgres:latest
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PORT: ${DB_PORT}
+    ports:
+      - ${POSTGRES_PORT:-5432}:5432
+    healthcheck:
+      test: "pg_isready --username=${DB_USER} --dbname=${DB_NAME} && psql --username=${DB_USER} --dbname=${DB_NAME} --list"
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - ./config/db/pg_data:/var/lib/postgresql/data
+      - ./config/db/pg_dataset:/docker-entrypoint-initdb.d
+    networks:
+      - net
+
+volumes:
+  db:
+
+networks:
+  net:

@@ -1,0 +1,28 @@
+# Ignore node_modules (except the base image installs)
+node_modules
+
+# Ignore all log files
+logs
+*.log
+
+# Ignore Dockerfile and .dockerignore itself
+Dockerfile
+.dockerignore
+
+# Ignore Git files
+.git
+.gitignore
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore compiled outputs (optional, if generated outside build process)
+dist
+build
+
+# Ignore .env files (optional, if you don't want them in the image)
+.env
+
+# Ignore config/db directory (optional, if you don't want them in the image)
+config/db
