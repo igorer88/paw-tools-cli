@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common'
 
-import { ClientException, InternalException } from './base.error';
-import type { FormattedError } from './error.interface';
+import { ClientException, InternalException } from './base.error'
+import type { FormattedError } from './error.interface'
 
 @Injectable()
 export class ErrorService {
@@ -12,17 +12,17 @@ export class ErrorService {
       errorCode: error.errorCode,
       exception: error.exception,
       stack: error.stack,
-      context: error.context,
-    };
+      context: error.context
+    }
   }
 
   public handleException(exception: unknown): ClientException {
     if (exception instanceof ClientException) {
-      return exception;
+      return exception
     }
 
     if (exception instanceof InternalException) {
-      const formattedError = this.formatInternalException(exception);
+      const formattedError = this.formatInternalException(exception)
       return new ClientException(
         formattedError.message,
         formattedError.details,
@@ -31,10 +31,10 @@ export class ErrorService {
         formattedError.context,
         formattedError.exception,
         formattedError.stack
-      );
+      )
     }
 
-    const error = exception as Error;
+    const error = exception as Error
     return new ClientException(
       error.message,
       undefined,
@@ -43,6 +43,6 @@ export class ErrorService {
       {},
       exception,
       error.stack
-    );
+    )
   }
 }

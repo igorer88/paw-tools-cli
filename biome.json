@@ -38,8 +38,8 @@
     "formatter": {
       "quoteStyle": "single",
       "jsxQuoteStyle": "double",
-      "trailingCommas": "es5",
-      "semicolons": "always"
+      "trailingCommas": "none",
+      "semicolons": "asNeeded"
     }
   }
 }

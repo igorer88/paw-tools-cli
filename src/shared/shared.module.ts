@@ -1,9 +1,9 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common'
 
-import { ErrorModule } from './errors/error.module';
+import { ErrorModule } from './errors/error.module'
 
 @Global()
 @Module({
-  imports: [ErrorModule],
+  imports: [ErrorModule]
 })
 export class SharedModule {}

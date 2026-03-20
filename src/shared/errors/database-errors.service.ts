@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common'
 
 @Injectable()
 export class DBErrorsService {
@@ -7,11 +7,11 @@ export class DBErrorsService {
       case '':
         throw new ConflictException('Entity already exists', {
           cause: error.detail,
-          description: 'Error while checking entity constraints',
-        });
+          description: 'Error while checking entity constraints'
+        })
 
       default:
-        break;
+        break
     }
   }
 }

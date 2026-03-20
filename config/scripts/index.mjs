@@ -1,14 +1,13 @@
 import fs from 'node:fs'
-
+import { updateDockerCompose, updatePackageJson } from './updatePackage.mjs'
 import {
   askQuestion,
   askYesNoQuestion,
-  installDependencies,
   getGitAuthor,
+  installDependencies,
   isPackageManagerInstalled,
   rl
 } from './utils.mjs'
-import { updatePackageJson, updateDockerCompose } from './updatePackage.mjs'
 
 /**
  * Main function to prompt the user for package details and update the package.json file and docker compose file.
@@ -29,15 +28,11 @@ const main = async () => {
     )
 
     if (!fs.existsSync(dockerComposePath)) {
-      console.error(`Error: ${dockerComposePath} does not exist.`)
       return
     }
 
     const serviceName = await askQuestion('Enter Docker service name', 'api')
-    const dockerImageVersion = await askQuestion(
-      'Enter Docker image version',
-      'latest'
-    )
+    const dockerImageVersion = await askQuestion('Enter Docker image version', 'latest')
 
     const shouldInstallDependencies = await askYesNoQuestion(
       'Do you want to install dependencies now?'
@@ -52,7 +47,6 @@ const main = async () => {
       )
       const isInstalled = await isPackageManagerInstalled(packageManager)
       if (!isInstalled) {
-        console.error(`Error: ${packageManager} is not installed.`)
         return
       }
 
@@ -70,13 +64,8 @@ const main = async () => {
 
     if (shouldInstallDependencies) {
       await installDependencies(packageManager)
-      console.log(
-        `\nTo run the NestJS project, use: ${packageManager} run start:dev or ${packageManager} start:dev `
-      )
     }
-    console.log('\nReady to go!\nHappy Coding! 🚀')
-  } catch (error) {
-    console.error('Error:', error)
+  } catch (_error) {
   } finally {
     rl.close()
   }

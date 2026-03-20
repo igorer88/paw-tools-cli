@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
 
-import { CliModule } from './cli/cli.module';
-import { appConfig, getValidationSchema } from './config';
-import { SharedModule } from './shared/shared.module';
+import { CliModule } from './cli/cli.module'
+import { appConfig, getValidationSchema } from './config'
+import { SharedModule } from './shared/shared.module'
 
 @Module({
   imports: [
@@ -11,10 +11,10 @@ import { SharedModule } from './shared/shared.module';
       validationSchema: getValidationSchema(),
       load: [appConfig],
       isGlobal: true,
-      cache: true,
+      cache: true
     }),
     SharedModule,
-    CliModule,
-  ],
+    CliModule
+  ]
 })
 export class AppModule {}

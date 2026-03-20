@@ -1,19 +1,19 @@
-import { Test, type TestingModule } from '@nestjs/testing';
+import { Test, type TestingModule } from '@nestjs/testing'
 
-import { ErrorService } from './error.service';
+import { ErrorService } from './error.service'
 
 describe('ErrorService', () => {
-  let service: ErrorService;
+  let service: ErrorService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ErrorService],
-    }).compile();
+      providers: [ErrorService]
+    }).compile()
 
-    service = module.get<ErrorService>(ErrorService);
-  });
+    service = module.get<ErrorService>(ErrorService)
+  })
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-});
+    expect(service).toBeDefined()
+  })
+})
