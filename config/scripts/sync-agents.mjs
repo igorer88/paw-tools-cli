@@ -55,9 +55,7 @@ function convertMcpConfig(mcpConfig) {
   }
 
   const converted = {}
-  for (const [serverName, serverConfig] of Object.entries(
-    mcpConfig.mcpServers
-  )) {
+  for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
     converted[serverName] = {
       type: 'local',
       command: [serverConfig.command, ...(serverConfig.args || [])]
@@ -75,9 +73,7 @@ function generateOpencodeJson(configJson) {
 
   // Convert commands to OpenCode command format
   if (configJson.commands) {
-    for (const [commandName, commandConfig] of Object.entries(
-      configJson.commands
-    )) {
+    for (const [commandName, commandConfig] of Object.entries(configJson.commands)) {
       commands[commandName] = {
         description: commandConfig.description || '',
         template: `Read the command definition at ${commandConfig.definition} and execute the instructions.`
@@ -99,9 +95,7 @@ function generateOpencodeJson(configJson) {
       if (convertedMcp) {
         result.mcp = convertedMcp
       }
-    } catch (error) {
-      console.log(`  Warning: Failed to parse MCP config: ${error.message}`)
-    }
+    } catch (_error) {}
   }
 
   return result
@@ -149,18 +143,12 @@ function generateCommandsForTool(toolKey, commandsConfig) {
     const targetPath = path.join(targetDir, `${commandName}.md`)
 
     if (!fs.existsSync(sourcePath)) {
-      console.log(`  Warning: Source command file not found: ${sourcePath}`)
       continue
     }
 
-    const generatedContent = generateCommandMarkdown(
-      sourcePath,
-      toolKey,
-      commandConfig
-    )
+    const generatedContent = generateCommandMarkdown(sourcePath, toolKey, commandConfig)
 
     fs.writeFileSync(targetPath, generatedContent)
-    console.log(`  Generated: .opencode/commands/${commandName}.md`)
   }
 }
 
@@ -218,8 +206,8 @@ function validateYesNo(input) {
 }
 
 function promptQuestion(rl, question) {
-  return new Promise(resolve => {
-    rl.question(question, answer => {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
       resolve(answer)
     })
   })
@@ -227,14 +215,12 @@ function promptQuestion(rl, question) {
 
 async function getValidToolSelection(rl) {
   const availableTools = Object.keys(TOOL_CONFIGS)
-  const optionsText = availableTools.map(t => `  - ${t}`).join('\n')
+  const optionsText = availableTools.map((t) => `  - ${t}`).join('\n')
 
   while (true) {
     const input = await promptQuestion(
       rl,
-      '\nAvailable AI tools:\n' +
-        optionsText +
-        '\n\nWhich AI tool do you want to use? '
+      `\nAvailable AI tools:\n${optionsText}\n\nWhich AI tool do you want to use? `
     )
 
     const validation = validateToolInput(input, availableTools)
@@ -242,25 +228,18 @@ async function getValidToolSelection(rl) {
     if (validation.valid) {
       return validation.value
     }
-
-    console.log(`\nError: ${validation.error}\n`)
   }
 }
 
 async function askForNestJsMcp(rl) {
   while (true) {
-    const input = await promptQuestion(
-      rl,
-      '\nDo you want to configure NestJsMcp? (y/n): '
-    )
+    const input = await promptQuestion(rl, '\nDo you want to configure NestJsMcp? (y/n): ')
 
     const validation = validateYesNo(input)
 
     if (validation.valid) {
       return validation.value
     }
-
-    console.log(`\nError: ${validation.error}\n`)
   }
 }
 
@@ -274,20 +253,14 @@ async function getNestJsMcpPath(rl) {
     const trimmed = input.trim()
 
     if (!trimmed) {
-      console.log(
-        '\nError: Path cannot be empty. Please enter the path to NestJsMcp.\n'
-      )
       continue
     }
 
     const absolutePath = path.resolve(projectRoot, trimmed)
 
     if (!fs.existsSync(absolutePath)) {
-      console.log(`\nError: Path does not exist: ${absolutePath}\n`)
       continue
     }
-
-    console.log(`\nUsing NestJsMcp path: ${trimmed}`)
     return trimmed
   }
 }
@@ -314,7 +287,6 @@ function createSymlink(source, target) {
     const stats = fs.lstatSync(targetPath)
     if (stats.isSymbolicLink()) {
       fs.unlinkSync(targetPath)
-      console.log(`  Removed existing symlink: ${target}`)
     } else {
       throw new Error(`Target exists and is not a symlink: ${targetPath}`)
     }
@@ -322,7 +294,6 @@ function createSymlink(source, target) {
 
   const symlinkType = getSymlinkType(sourcePath)
   fs.symlinkSync(sourcePath, targetPath, symlinkType)
-  console.log(`  Created symlink: ${target} -> ${source}`)
 }
 
 function createSymlinksForTool(toolKey) {
@@ -330,8 +301,6 @@ function createSymlinksForTool(toolKey) {
   if (!config || !config.links) {
     throw new Error(`No configuration found for tool: ${toolKey}`)
   }
-
-  console.log(`\nCreating folders, files and symlinks for "${toolKey}"...\n`)
 
   for (const link of config.links) {
     createSymlink(link.source, link.target)
@@ -347,15 +316,9 @@ function createSymlinksForTool(toolKey) {
   // Generate command files with tool-specific frontmatter
   if (config.generateCommands) {
     const configPath = path.resolve(projectRoot, '.agents/config.json')
-    const commandsConfig = JSON.parse(
-      fs.readFileSync(configPath, 'utf-8')
-    ).commands
+    const commandsConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')).commands
     generateCommandsForTool(toolKey, commandsConfig)
   }
-
-  console.log(
-    `\nSuccessfully created folders, files and symlinks for ${toolKey}`
-  )
 }
 
 function generateFile(source, target) {
@@ -381,7 +344,6 @@ function generateFile(source, target) {
   }
 
   fs.writeFileSync(targetPath, JSON.stringify(generatedContent, null, 2))
-  console.log(`  Generated: ${target}`)
 }
 
 function writeMcpConfig(nestjsMcpPath) {
@@ -398,12 +360,10 @@ function writeMcpConfig(nestjsMcpPath) {
   ensureDirectoryExists(path.dirname(mcpFilePath))
 
   fs.writeFileSync(mcpFilePath, JSON.stringify(mcpConfig, null, 2))
-  console.log(`\nCreated MCP config from: .agents/mcp.json`)
 }
 
 async function main() {
-  const platform = getPlatform()
-  console.log(`Detected platform: ${platform}`)
+  const _platform = getPlatform()
 
   // Check for command-line arguments for non-interactive mode
   const args = process.argv.slice(2)
@@ -416,9 +376,6 @@ async function main() {
     selectedTool = args[0]
     configureNestJsMcp = args[1] !== undefined
     nestjsMcpPath = args[1] || null
-    console.log(`Running in non-interactive mode`)
-    console.log(`Tool: ${selectedTool}`)
-    console.log(`Configure MCP: ${configureNestJsMcp}`)
   } else {
     // Interactive mode
     const rl = createInterface()
@@ -443,12 +400,7 @@ async function main() {
     if (configureNestJsMcp && nestjsMcpPath) {
       writeMcpConfig(nestjsMcpPath)
     }
-
-    console.log(`\n=== Setup Complete ===`)
-    console.log(`AI Tool: ${selectedTool}`)
-    console.log(`NestJsMcp: ${configureNestJsMcp ? nestjsMcpPath : 'Skipped'}`)
-  } catch (error) {
-    console.error(`\nError: ${error.message}`)
+  } catch (_error) {
     process.exit(1)
   }
 }

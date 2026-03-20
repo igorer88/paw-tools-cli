@@ -1,6 +1,0 @@
-node_modules
-dist
-config/db
-*-lock.json           # package-lock.json
-*.lock                # yarn.lock and all others
-*-lock.{yaml,yml}     # pnpm lock and all others
