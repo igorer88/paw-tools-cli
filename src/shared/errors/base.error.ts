@@ -1,9 +1,9 @@
-import { Logger } from '@nestjs/common'
+import { Logger } from '@nestjs/common';
 
-import { ErrorTypes } from './enums'
+import { ErrorTypes } from './enums';
 
 export abstract class BaseError extends Error {
-  public context: Record<string, unknown>
+  public context: Record<string, unknown>;
 
   constructor(
     public readonly message: string,
@@ -14,18 +14,18 @@ export abstract class BaseError extends Error {
     public readonly details?: string,
     public readonly extra?: Record<string, unknown>
   ) {
-    super(message)
-    this.name = this.constructor.name
-    this.context = {}
-    Error.captureStackTrace(this, this.constructor)
+    super(message);
+    this.name = this.constructor.name;
+    this.context = {};
+    Error.captureStackTrace(this, this.constructor);
   }
 
-  abstract logError(extraParam?: unknown): void
+  abstract logError(extraParam?: unknown): void;
 }
 
 export class ClientException extends BaseError {
-  private logger = new Logger(this.constructor.name)
-  public readonly statusCode: number
+  private logger = new Logger(this.constructor.name);
+  public readonly statusCode: number;
 
   constructor(
     message: string,
@@ -36,18 +36,18 @@ export class ClientException extends BaseError {
     exception: unknown,
     stack?: string
   ) {
-    super(message, ErrorTypes.CLIENT_ERROR, errorCode, exception, stack, details)
-    this.context = context
-    this.statusCode = statusCode
+    super(message, ErrorTypes.CLIENT_ERROR, errorCode, exception, stack, details);
+    this.context = context;
+    this.statusCode = statusCode;
   }
 
   logError(extraParam?: unknown): void {
-    this.logger.error(`${this.message} - ${this.details} - ${extraParam}`)
+    this.logger.error(`${this.message} - ${this.details} - ${extraParam}`);
   }
 }
 
 export class InternalException extends BaseError {
-  private logger = new Logger(this.constructor.name)
+  private logger = new Logger(this.constructor.name);
 
   constructor(
     message: string,
@@ -56,11 +56,11 @@ export class InternalException extends BaseError {
     exception: unknown,
     stack?: string
   ) {
-    super(message, ErrorTypes.INTERNAL_ERROR, 'INTERNAL_ERROR', exception, stack, details)
-    this.context = context
+    super(message, ErrorTypes.INTERNAL_ERROR, 'INTERNAL_ERROR', exception, stack, details);
+    this.context = context;
   }
 
   logError(extraParam?: unknown): void {
-    this.logger.error(`${this.message} - ${this.details} - ${extraParam}`)
+    this.logger.error(`${this.message} - ${this.details} - ${extraParam}`);
   }
 }

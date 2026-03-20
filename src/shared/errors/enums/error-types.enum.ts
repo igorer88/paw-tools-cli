@@ -10,5 +10,5 @@ export enum ErrorTypes {
   /**
    * Represents an internal server error.
    */
-  INTERNAL_ERROR = 'INTERNAL_ERROR'
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
 }

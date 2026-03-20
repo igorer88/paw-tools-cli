@@ -15,5 +15,5 @@ export enum Environment {
   /**
    * Test environment.
    */
-  Test = 'test'
+  Test = 'test',
 }

@@ -1,6 +1,6 @@
-import Joi from 'joi'
+import Joi from 'joi';
 
-import { Environment } from '../enums'
+import { Environment } from '../enums';
 
 export const getValidationSchema = (): Joi.ObjectSchema => {
   return Joi.object({
@@ -9,6 +9,6 @@ export const getValidationSchema = (): Joi.ObjectSchema => {
       .valid(Environment.Development, Environment.Production, Environment.Test),
     DEBUG: Joi.boolean().default(false),
     APP_SECRET_KEY: Joi.string().min(32),
-    APP_LOGGER_LEVELS: Joi.string().default('log,error,warn,debug,verbose,fatal')
-  }).unknown(true)
-}
+    APP_LOGGER_LEVELS: Joi.string().default('log,error,warn,debug,verbose,fatal'),
+  }).unknown(true);
+};
