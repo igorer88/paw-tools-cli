@@ -1,0 +1,72 @@
+{
+  "global_rules": "./.paw-tools/main.md",
+  "mcp_config": "./.paw-tools/mcp.json",
+  "agents": {
+    "docs": {
+      "definition": "agents/docs.md",
+      "description": "Generate or update documentation",
+      "trigger_keywords": [
+        "docs",
+        "documentation",
+        "readme",
+        "guide",
+        "changelog",
+        "api-docs",
+        "manual",
+        "instructions"
+      ]
+    },
+    "security-audit": {
+      "definition": "agents/security-audit.md",
+      "description": "Perform security audit and suggest improvements",
+      "trigger_keywords": [
+        "security",
+        "vulnerability",
+        "audit",
+        "secure",
+        "threat",
+        "attack",
+        "exploit",
+        "owasp",
+        "cwe",
+        "injection",
+        "xss",
+        "csrf",
+        "password",
+        "auth",
+        "authorization",
+        "encryption",
+        "sanitize",
+        "pentest",
+        "red-team",
+        "log",
+        "malware",
+        "sql-injection",
+        "vulnerability-scan",
+        "security-scan",
+        "code-review",
+        "penetration-test",
+        "security-analysis",
+        "risk-assessment",
+        "security-hardening"
+      ]
+    }
+  },
+  "commands": {
+    "init-feature": {
+      "definition": "commands/init-feature.md",
+      "description": "Init NestJs Feature",
+      "command": "/init-feature"
+    },
+    "test-backend": {
+      "definition": "commands/test-backend.md",
+      "description": "Write or update tests for backend applications",
+      "command": "/test-backend"
+    }
+  },
+  "skills": {
+    "init-feature": "skills/init-feature/SKILL.md",
+    "nestjs-crud": "skills/nestjs-crud/SKILL.md"
+  },
+  "rules": ["rules/dtos.md", "rules/controllers.md", "rules/modules.md", "rules/services.md"]
+}
