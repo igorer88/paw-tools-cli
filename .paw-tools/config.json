@@ -2,20 +2,6 @@
   "global_rules": "./.paw-tools/main.md",
   "mcp_config": "./.paw-tools/mcp.json",
   "agents": {
-    "docs": {
-      "definition": "agents/docs.md",
-      "description": "Generate or update documentation",
-      "trigger_keywords": [
-        "docs",
-        "documentation",
-        "readme",
-        "guide",
-        "changelog",
-        "api-docs",
-        "manual",
-        "instructions"
-      ]
-    },
     "security-audit": {
       "definition": "agents/security-audit.md",
       "description": "Perform security audit and suggest improvements",
@@ -65,6 +51,7 @@
     }
   },
   "skills": {
+    "docs": "skills/docs/SKILL.md",
     "init-feature": "skills/init-feature/SKILL.md",
     "nestjs-crud": "skills/nestjs-crud/SKILL.md"
   },
