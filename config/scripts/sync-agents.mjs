@@ -7,16 +7,18 @@ import yaml from 'yaml'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
 
+const PAW_TOOLS_DIR = '.paw-tools'
+
 const TOOL_CONFIGS = {
   opencode: {
     links: [
-      { source: '.agents/main.md', target: 'AGENTS.md' },
-      { source: '.agents/skills', target: '.opencode/skills', type: 'symlink' },
-      { source: '.agents/agents', target: '.opencode/agents', type: 'symlink' }
+      { source: `${PAW_TOOLS_DIR}/main.md`, target: 'AGENTS.md' },
+      { source: `${PAW_TOOLS_DIR}/skills`, target: '.opencode/skills', type: 'symlink' },
+      { source: `${PAW_TOOLS_DIR}/agents`, target: '.opencode/agents', type: 'symlink' }
     ],
     generateFiles: [
       {
-        source: '.agents/config.json',
+        source: `${PAW_TOOLS_DIR}/config.json`,
         target: 'opencode.json',
         type: 'generate'
       }
@@ -26,20 +28,20 @@ const TOOL_CONFIGS = {
   gemini: {
     links: [
       { source: 'AGENTS.md', target: 'GEMINI.md' },
-      { source: '.agents/config.json', target: '.gemini/settings.json' },
-      { source: '.agents/commands', target: '.gemini/commands' },
-      { source: '.agents/skills', target: '.gemini/skills' },
-      { source: '.agents/agents', target: '.gemini/agents', type: 'symlink' },
-      { source: '.agents', target: '.gemini/agents' }
+      { source: `${PAW_TOOLS_DIR}/config.json`, target: '.gemini/settings.json' },
+      { source: `${PAW_TOOLS_DIR}/commands`, target: '.gemini/commands' },
+      { source: `${PAW_TOOLS_DIR}/skills`, target: '.gemini/skills' },
+      { source: `${PAW_TOOLS_DIR}/agents`, target: '.gemini/agents', type: 'symlink' },
+      { source: PAW_TOOLS_DIR, target: '.gemini/agents' }
     ]
   },
   copilot: {
     links: [
       { source: 'AGENTS.md', target: '.github/copilot-instructions.md' },
-      { source: '.agents/commands', target: '.github/commands' },
-      { source: '.agents/skills', target: '.github/skills' },
-      { source: '.agents/agents', target: '.github/agents', type: 'symlink' },
-      { source: '.agents', target: '.github/agents' }
+      { source: `${PAW_TOOLS_DIR}/commands`, target: '.github/commands' },
+      { source: `${PAW_TOOLS_DIR}/skills`, target: '.github/skills' },
+      { source: `${PAW_TOOLS_DIR}/agents`, target: '.github/agents', type: 'symlink' },
+      { source: PAW_TOOLS_DIR, target: '.github/agents' }
     ]
   }
 }
@@ -66,7 +68,7 @@ function convertMcpConfig(mcpConfig) {
 }
 
 /**
- * Converts .agents/config.json to OpenCode's expected format
+ * Converts .paw-tools/config.json to OpenCode's expected format
  */
 function generateOpencodeJson(configJson) {
   const commands = {}
@@ -87,7 +89,7 @@ function generateOpencodeJson(configJson) {
   }
 
   // Add MCP config if present
-  const mcpConfigPath = path.resolve(projectRoot, '.agents/mcp.json')
+  const mcpConfigPath = path.resolve(projectRoot, `${PAW_TOOLS_DIR}/mcp.json`)
   if (fs.existsSync(mcpConfigPath)) {
     try {
       const mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf-8'))
@@ -133,7 +135,7 @@ function generateCommandMarkdown(sourcePath, tool, commandConfig) {
  * Generates command files for a specific tool
  */
 function generateCommandsForTool(toolKey, commandsConfig) {
-  const commandsDir = path.resolve(projectRoot, `.agents/commands`)
+  const commandsDir = path.resolve(projectRoot, `${PAW_TOOLS_DIR}/commands`)
   const targetDir = path.resolve(projectRoot, `.opencode/commands`)
 
   ensureDirectoryExists(targetDir)
@@ -315,7 +317,7 @@ function createSymlinksForTool(toolKey) {
 
   // Generate command files with tool-specific frontmatter
   if (config.generateCommands) {
-    const configPath = path.resolve(projectRoot, '.agents/config.json')
+    const configPath = path.resolve(projectRoot, `${PAW_TOOLS_DIR}/config.json`)
     const commandsConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')).commands
     generateCommandsForTool(toolKey, commandsConfig)
   }
@@ -356,7 +358,7 @@ function writeMcpConfig(nestjsMcpPath) {
     }
   }
 
-  const mcpFilePath = path.resolve(projectRoot, '.agents/mcp.json')
+  const mcpFilePath = path.resolve(projectRoot, `${PAW_TOOLS_DIR}/mcp.json`)
   ensureDirectoryExists(path.dirname(mcpFilePath))
 
   fs.writeFileSync(mcpFilePath, JSON.stringify(mcpConfig, null, 2))
