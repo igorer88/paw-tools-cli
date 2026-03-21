@@ -190,6 +190,25 @@ refactor: simplify error handling
 test: add tests for user service
 ```
 
+## Git Flow Branching Strategy
+
+All PRs target `develop` first. `main` receives releases from `develop`.
+
+### Branch Structure
+
+- **main** - Production-ready releases
+- **develop** - Integration branch for all changes
+- **fix/** - Bug fixes (e.g., `fix/symlink-path`)
+- **feature/** - New features (e.g., `feature/add-auth`)
+- **release/** - Release candidates
+
+### Rules
+
+1. **Never merge directly to main** - All changes go to develop first
+2. **PRs to develop** - Feature/fix branches merge into develop
+3. **Releases** - develop merges into main via release PRs
+4. **Hotfixes** - Branch from main, merge to both main and develop
+
 ## Pre-commit Hooks
 
 Husky is configured. Run `pnpm prepare` after initial clone to install hooks.
