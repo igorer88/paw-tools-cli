@@ -33,8 +33,9 @@ describe('ConfigCommand', () => {
 
     it('should return default path when no custom path or env var', () => {
       const result = (command as any).resolveConfigPath()
-      expect(result).toContain('.paw-tools')
+      expect(result).toContain('config')
       expect(result).toContain('config.json')
+      expect(result).not.toContain('.paw-tools')
     })
 
     it('should prioritize custom path over env var', () => {

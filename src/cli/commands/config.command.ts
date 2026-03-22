@@ -22,7 +22,7 @@ export class ConfigCommand extends CommandRunner {
   private resolveConfigPath(customPath?: string): string {
     if (customPath) return customPath
     if (process.env.PAW_CONFIG) return process.env.PAW_CONFIG
-    return join(process.cwd(), '.paw-tools', 'config.json')
+    return join(process.cwd(), 'config', 'config.json')
   }
 
   private loadConfig(path: string): Record<string, unknown> {
