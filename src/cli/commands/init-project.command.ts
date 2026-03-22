@@ -321,7 +321,14 @@ export class InitProjectCommand extends CommandRunner {
         }
       }
 
-      writeFileSync(dockerComposePath, stringifyYaml(composeFile))
+      let yamlContent = stringifyYaml(composeFile)
+
+      yamlContent = yamlContent.replace(
+        /image: ([^\n]+)/,
+        `image: $1\n    # For production with GHCR, uncomment and update:\n    # image: ghcr.io/your-username/your-repo:${config.imageVersion}`
+      )
+
+      writeFileSync(dockerComposePath, yamlContent)
     } catch (error) {
       console.error('Failed to update docker-compose.yml:', error)
     }

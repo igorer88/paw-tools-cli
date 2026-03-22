@@ -34,7 +34,28 @@ jest.mock('yaml', () => ({
       }
     }
   }),
-  stringify: jest.fn((obj: any) => JSON.stringify(obj))
+  stringify: jest.fn((obj: any) => {
+    const services = obj.services || {}
+    let yaml = 'services:\n'
+    for (const [serviceName, service] of Object.entries(services)) {
+      const s = service as Record<string, unknown>
+      yaml += `  ${serviceName}:\n`
+      yaml += `    container_name: ${s.container_name}\n`
+      yaml += `    image: ${s.image}\n`
+      if (s.build) {
+        const build = s.build as Record<string, unknown>
+        yaml += '    build:\n'
+        if (build.args) {
+          const args = build.args as Record<string, string>
+          yaml += '      args:\n'
+          for (const [key, value] of Object.entries(args)) {
+            yaml += `        ${key}: "${value}"\n`
+          }
+        }
+      }
+    }
+    return yaml
+  })
 }))
 
 const mockExec = jest.fn()
@@ -633,6 +654,26 @@ describe('InitProjectCommand', () => {
       })
 
       expect(writeFileSync).toHaveBeenCalled()
+    })
+
+    it('should add GHCR placeholder comment', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
+      let writtenContent = ''
+      ;(writeFileSync as jest.Mock).mockImplementation((_path: string, content: string) => {
+        writtenContent = content
+      })
+
+      await (command as any).updateDockerCompose({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(writtenContent).toContain('# For production with GHCR, uncomment and update:')
+      expect(writtenContent).toContain('# image: ghcr.io/your-username/your-repo:1.0.0')
     })
 
     it('should handle YAML parse error', async () => {
