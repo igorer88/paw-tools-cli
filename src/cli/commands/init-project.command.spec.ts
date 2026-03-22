@@ -92,23 +92,72 @@ describe('InitProjectCommand', () => {
   })
 
   describe('initializeInteractive', () => {
-    it('should prompt for all fields', async () => {
+    it('should prompt for all fields using current config', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      ;(readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({
+          name: 'current-name',
+          description: 'current-desc',
+          version: '1.0.0',
+          author: 'current-author'
+        })
+      )
       mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
 
       await (command as any).initializeInteractive()
 
       expect(clack.text).toHaveBeenCalledTimes(4)
+      expect(clack.confirm).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show changes before confirmation', async () => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('new-name')
+        .mockResolvedValueOnce('current-desc')
+        .mockResolvedValueOnce('1.0.0')
+        .mockResolvedValueOnce('current-author')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({
+          name: 'current-name',
+          description: 'current-desc',
+          version: '1.0.0',
+          author: 'current-author'
+        })
+      )
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      await (command as any).initializeInteractive()
+
+      expect(consoleSpy).toHaveBeenCalledWith('\nChanges to be applied:')
+      expect(consoleSpy).toHaveBeenCalledWith('  name: "current-name" → "new-name"')
+    })
+
+    it('should cancel when user rejects confirmation', async () => {
+      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(false)
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+
+      await (command as any).initializeInteractive()
+
+      expect(clack.cancel).toHaveBeenCalledWith('Operation cancelled.')
+      expect(exitSpy).toHaveBeenCalledWith(0)
     })
 
     it('should cancel on user cancel for name', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
 
-      await (command as any).initializeInteractive()
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
       expect(exitSpy).toHaveBeenCalledWith(0)
@@ -121,9 +170,11 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
 
-      await (command as any).initializeInteractive()
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -136,9 +187,11 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
 
-      await (command as any).initializeInteractive()
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -152,11 +205,96 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
 
-      await (command as any).initializeInteractive()
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
+    })
+
+    it('should cancel when confirmation is cancelled', async () => {
+      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
+        (val: unknown) => typeof val === 'symbol'
+      )
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
+
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+
+      expect(clack.cancel).toHaveBeenCalled()
+    })
+  })
+
+  describe('getCurrentConfig', () => {
+    it('should return current values from package.json', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({
+          name: 'existing-name',
+          description: 'existing-desc',
+          version: '2.0.0',
+          author: 'existing-author'
+        })
+      )
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      const config = await (command as any).getCurrentConfig()
+
+      expect(config).toEqual({
+        name: 'existing-name',
+        description: 'existing-desc',
+        version: '2.0.0',
+        author: 'existing-author'
+      })
+    })
+
+    it('should return defaults when no package.json exists', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(false)
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      const config = await (command as any).getCurrentConfig()
+
+      expect(config).toEqual({
+        name: 'my-project',
+        description: 'A JavaScript/TypeScript project',
+        version: '1.0.0',
+        author: expect.any(String)
+      })
+    })
+
+    it('should handle malformed package.json', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('invalid json')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      const config = await (command as any).getCurrentConfig()
+
+      expect(config).toEqual({
+        name: 'my-project',
+        description: 'A JavaScript/TypeScript project',
+        version: '1.0.0',
+        author: expect.any(String)
+      })
+    })
+
+    it('should use defaults for missing fields in package.json', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ name: 'only-name' }))
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      const config = await (command as any).getCurrentConfig()
+
+      expect(config.name).toBe('only-name')
+      expect(config.description).toBe('A JavaScript/TypeScript project')
+      expect(config.version).toBe('1.0.0')
     })
   })
 
@@ -180,6 +318,64 @@ describe('InitProjectCommand', () => {
       const config = await (command as any).getDefaultConfig()
 
       expect(config.author).toBe('Unknown <unknown@example.com>')
+    })
+  })
+
+  describe('getConfigChanges', () => {
+    it('should return empty array when no changes', () => {
+      const current = {
+        name: 'same',
+        description: 'same',
+        version: '1.0.0',
+        author: 'same'
+      }
+      const updated = { ...current }
+
+      const changes = (command as any).getConfigChanges(current, updated)
+
+      expect(changes).toEqual([])
+    })
+
+    it('should return only changed fields', () => {
+      const current = {
+        name: 'old-name',
+        description: 'old-desc',
+        version: '1.0.0',
+        author: 'old-author'
+      }
+      const updated = {
+        name: 'new-name',
+        description: 'old-desc',
+        version: '2.0.0',
+        author: 'old-author'
+      }
+
+      const changes = (command as any).getConfigChanges(current, updated)
+
+      expect(changes).toEqual(['name: "old-name" → "new-name"', 'version: "1.0.0" → "2.0.0"'])
+    })
+
+    it('should return all changes when all fields differ', () => {
+      const current = {
+        name: 'old-name',
+        description: 'old-desc',
+        version: '1.0.0',
+        author: 'old-author'
+      }
+      const updated = {
+        name: 'new-name',
+        description: 'new-desc',
+        version: '2.0.0',
+        author: 'new-author'
+      }
+
+      const changes = (command as any).getConfigChanges(current, updated)
+
+      expect(changes).toHaveLength(4)
+      expect(changes).toContain('name: "old-name" → "new-name"')
+      expect(changes).toContain('description: "old-desc" → "new-desc"')
+      expect(changes).toContain('version: "1.0.0" → "2.0.0"')
+      expect(changes).toContain('author: "old-author" → "new-author"')
     })
   })
 
