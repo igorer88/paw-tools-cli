@@ -17,7 +17,6 @@
   ],
   "scripts": {
     "setup:agents": "node ./config/scripts/sync-agents.mjs",
-    "generate:secret": "node ./config/scripts/generate-secret-key.mjs",
     "build": "nest build",
     "cli": "node dist/main",
     "cli:dev": "ts-node src/main.ts",
