@@ -234,17 +234,20 @@ describe('InitProjectCommand', () => {
   })
 
   describe('getCurrentConfig', () => {
-    it('should return current values from package.json', async () => {
+    it('should return current values from package.json with git author', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
       ;(readFileSync as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'existing-name',
           description: 'existing-desc',
           version: '2.0.0',
-          author: 'existing-author'
+          author: 'old-author'
         })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((cmd: string, cb: Function) => {
+        if (cmd.includes('user.name')) cb(null, 'Git User\n')
+        else cb(null, 'git@example.com\n')
+      })
 
       const config = await (command as any).getCurrentConfig()
 
@@ -252,7 +255,7 @@ describe('InitProjectCommand', () => {
         name: 'existing-name',
         description: 'existing-desc',
         version: '2.0.0',
-        author: 'existing-author'
+        author: 'Git User <git@example.com>'
       })
     })
 

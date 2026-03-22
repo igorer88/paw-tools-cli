@@ -136,7 +136,7 @@ export class InitProjectCommand extends CommandRunner {
         name: packageJson.name || 'my-project',
         description: packageJson.description || 'A JavaScript/TypeScript project',
         version: packageJson.version || '1.0.0',
-        author: packageJson.author || gitAuthor
+        author: gitAuthor
       }
     } catch {
       return await this.getDefaultConfig()
