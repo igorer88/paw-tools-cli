@@ -8,12 +8,33 @@ jest.mock('node:fs')
 jest.mock('@clack/prompts', () => ({
   text: jest.fn(),
   confirm: jest.fn(),
+  select: jest.fn(),
   spinner: jest.fn(() => ({
     start: jest.fn(),
     stop: jest.fn()
   })),
   cancel: jest.fn(),
   isCancel: jest.fn(() => false)
+}))
+
+jest.mock('yaml', () => ({
+  parse: jest.fn((content: string) => {
+    if (content === 'invalid yaml') throw new Error('Invalid YAML')
+    return {
+      services: {
+        api: {
+          container_name: 'api',
+          image: 'api:latest',
+          build: {
+            args: {
+              PNPM_REGISTRY: 'https://registry.npmjs.org/'
+            }
+          }
+        }
+      }
+    }
+  }),
+  stringify: jest.fn((obj: any) => JSON.stringify(obj))
 }))
 
 const mockExec = jest.fn()
@@ -95,7 +116,9 @@ describe('InitProjectCommand', () => {
     it('should prompt for all fields using current config', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
       ;(readFileSync as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'current-name',
@@ -119,7 +142,9 @@ describe('InitProjectCommand', () => {
         .mockResolvedValueOnce('1.0.0')
         .mockResolvedValueOnce('current-author')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
       ;(readFileSync as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'current-name',
@@ -139,7 +164,9 @@ describe('InitProjectCommand', () => {
     it('should cancel when user rejects confirmation', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
       ;(clack.confirm as jest.Mock).mockResolvedValue(false)
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
       ;(readFileSync as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
@@ -153,6 +180,10 @@ describe('InitProjectCommand', () => {
     it('should cancel on user cancel for name', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as any)
@@ -170,6 +201,10 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as any)
@@ -187,6 +222,10 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as any)
@@ -205,6 +244,10 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as any)
@@ -220,7 +263,9 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
       ;(readFileSync as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
@@ -228,6 +273,84 @@ describe('InitProjectCommand', () => {
       }) as any)
 
       await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+
+      expect(clack.cancel).toHaveBeenCalled()
+    })
+  })
+
+  describe('initializeDockerConfig', () => {
+    it('should return null when no docker-compose.yml exists', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(false)
+
+      const result = await (command as any).initializeDockerConfig('my-project')
+
+      expect(result).toBeNull()
+    })
+
+    it('should prompt for Docker config when docker-compose.yml exists', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
+      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
+
+      const result = await (command as any).initializeDockerConfig('my-project')
+
+      expect(result).toEqual({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+    })
+
+    it('should cancel on service name cancel', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
+
+      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
+        'process.exit'
+      )
+
+      expect(clack.cancel).toHaveBeenCalled()
+    })
+
+    it('should cancel on image version cancel', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('my-service')
+        .mockResolvedValueOnce(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
+        (val: unknown) => typeof val === 'symbol'
+      )
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
+
+      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
+        'process.exit'
+      )
+
+      expect(clack.cancel).toHaveBeenCalled()
+    })
+
+    it('should cancel on package manager cancel', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
+      ;(clack.select as jest.Mock).mockResolvedValue(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
+        (val: unknown) => typeof val === 'symbol'
+      )
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
+
+      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
+        'process.exit'
+      )
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -380,6 +503,30 @@ describe('InitProjectCommand', () => {
       expect(changes).toContain('version: "1.0.0" → "2.0.0"')
       expect(changes).toContain('author: "old-author" → "new-author"')
     })
+
+    it('should include docker changes when dockerConfig provided', () => {
+      const current = {
+        name: 'old-name',
+        description: 'old-desc',
+        version: '1.0.0',
+        author: 'old-author'
+      }
+      const updated = { ...current }
+      const dockerConfig = {
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      }
+
+      const changes = (command as any).getConfigChanges(current, updated, dockerConfig)
+
+      expect(changes).toHaveLength(3)
+      expect(changes).toContain('docker-service: "api" → "my-service"')
+      expect(changes).toContain('docker-image: "api:latest" → "my-project:1.0.0"')
+      expect(changes).toContain('registry: "PNPM_REGISTRY"')
+    })
   })
 
   describe('getGitAuthor', () => {
@@ -467,6 +614,41 @@ describe('InitProjectCommand', () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         'Failed to update package.json:',
+        expect.any(Error)
+      )
+    })
+  })
+
+  describe('updateDockerCompose', () => {
+    it('should update docker-compose.yml with service rename', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
+
+      await (command as any).updateDockerCompose({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(writeFileSync).toHaveBeenCalled()
+    })
+
+    it('should handle YAML parse error', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('invalid yaml')
+
+      await (command as any).updateDockerCompose({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to update docker-compose.yml:',
         expect.any(Error)
       )
     })

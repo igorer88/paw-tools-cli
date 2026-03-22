@@ -2,8 +2,9 @@ import { exec } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cancel, confirm, isCancel, spinner, text } from '@clack/prompts'
+import { cancel, confirm, isCancel, select, spinner, text } from '@clack/prompts'
 import { Command, CommandRunner, Option } from 'nest-commander'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 interface InitProjectOptions {
   defaults?: boolean
@@ -14,6 +15,14 @@ interface ProjectConfig {
   description: string
   version: string
   author: string
+}
+
+interface DockerConfig {
+  serviceName: string
+  projectName: string
+  imageVersion: string
+  packageManager: string
+  registryUrl: string
 }
 
 @Command({
@@ -95,7 +104,9 @@ export class InitProjectCommand extends CommandRunner {
       author: author as string
     }
 
-    const changes = this.getConfigChanges(currentConfig, config)
+    const dockerConfig = await this.initializeDockerConfig(name as string)
+
+    const changes = this.getConfigChanges(currentConfig, config, dockerConfig)
 
     if (changes.length > 0) {
       console.log('\nChanges to be applied:')
@@ -107,7 +118,7 @@ export class InitProjectCommand extends CommandRunner {
     }
 
     const shouldWrite = await confirm({
-      message: 'Write changes to package.json?'
+      message: 'Write changes?'
     })
 
     if (isCancel(shouldWrite) || !shouldWrite) {
@@ -115,10 +126,69 @@ export class InitProjectCommand extends CommandRunner {
       process.exit(0)
     }
 
-    const s = spinner()
-    s.start('Updating package.json...')
-    await this.updatePackageJson(config)
-    s.stop('Project initialized successfully.')
+    if (dockerConfig) {
+      const s = spinner()
+      s.start('Updating package.json and docker-compose.yml...')
+      await this.updatePackageJson(config)
+      await this.updateDockerCompose(dockerConfig)
+      s.stop('Project initialized successfully.')
+    } else {
+      const s = spinner()
+      s.start('Updating package.json...')
+      await this.updatePackageJson(config)
+      s.stop('Project initialized successfully.')
+    }
+  }
+
+  private async initializeDockerConfig(projectName: string): Promise<DockerConfig | null> {
+    const dockerComposePath = join(process.cwd(), 'docker-compose.yml')
+
+    if (!existsSync(dockerComposePath)) {
+      return null
+    }
+
+    const serviceName = await text({
+      message: 'Enter Docker service name:',
+      placeholder: projectName,
+      defaultValue: projectName
+    })
+    if (isCancel(serviceName)) {
+      cancel('Operation cancelled.')
+      process.exit(0)
+    }
+
+    const imageVersion = await text({
+      message: 'Enter Docker image version:',
+      placeholder: 'latest',
+      defaultValue: 'latest'
+    })
+    if (isCancel(imageVersion)) {
+      cancel('Operation cancelled.')
+      process.exit(0)
+    }
+
+    const packageManager = await select({
+      message: 'Select package manager:',
+      options: [
+        { value: 'pnpm', label: 'pnpm' },
+        { value: 'npm', label: 'npm' },
+        { value: 'yarn', label: 'yarn' }
+      ]
+    })
+    if (isCancel(packageManager)) {
+      cancel('Operation cancelled.')
+      process.exit(0)
+    }
+
+    const registryUrl = 'https://registry.npmjs.org/'
+
+    return {
+      serviceName: serviceName as string,
+      projectName,
+      imageVersion: imageVersion as string,
+      packageManager: packageManager as string,
+      registryUrl
+    }
   }
 
   private async getCurrentConfig(): Promise<ProjectConfig> {
@@ -154,7 +224,11 @@ export class InitProjectCommand extends CommandRunner {
     }
   }
 
-  private getConfigChanges(current: ProjectConfig, updated: ProjectConfig): string[] {
+  private getConfigChanges(
+    current: ProjectConfig,
+    updated: ProjectConfig,
+    dockerConfig?: DockerConfig | null
+  ): string[] {
     const changes: string[] = []
 
     if (current.name !== updated.name) {
@@ -168,6 +242,14 @@ export class InitProjectCommand extends CommandRunner {
     }
     if (current.author !== updated.author) {
       changes.push(`author: "${current.author}" → "${updated.author}"`)
+    }
+
+    if (dockerConfig) {
+      changes.push(`docker-service: "api" → "${dockerConfig.serviceName}"`)
+      changes.push(
+        `docker-image: "api:latest" → "${dockerConfig.projectName}:${dockerConfig.imageVersion}"`
+      )
+      changes.push(`registry: "${dockerConfig.packageManager.toUpperCase()}_REGISTRY"`)
     }
 
     return changes
@@ -210,6 +292,38 @@ export class InitProjectCommand extends CommandRunner {
       writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`)
     } catch (error) {
       console.error('Failed to update package.json:', error)
+    }
+  }
+
+  private async updateDockerCompose(config: DockerConfig): Promise<void> {
+    const dockerComposePath = join(process.cwd(), 'docker-compose.yml')
+
+    try {
+      const fileContents = readFileSync(dockerComposePath, 'utf8')
+      const composeFile = parseYaml(fileContents)
+
+      if (composeFile.services?.api) {
+        const service = composeFile.services.api
+        const dockerImage = `${config.projectName}:${config.imageVersion}`
+
+        service.container_name = config.serviceName
+        service.image = dockerImage
+
+        composeFile.services[config.serviceName] = service
+        delete composeFile.services.api
+
+        if (service.build?.args) {
+          const registryArg = `${config.packageManager.toUpperCase()}_REGISTRY`
+          delete service.build.args.NPM_REGISTRY
+          delete service.build.args.YARN_REGISTRY
+          delete service.build.args.PNPM_REGISTRY
+          service.build.args[registryArg] = config.registryUrl
+        }
+      }
+
+      writeFileSync(dockerComposePath, stringifyYaml(composeFile))
+    } catch (error) {
+      console.error('Failed to update docker-compose.yml:', error)
     }
   }
 
