@@ -5,6 +5,8 @@ import { loadConfig } from './config.loader'
 jest.mock('node:fs')
 
 describe('ConfigLoader', () => {
+  const originalEnv = process.env
+
   const mockConfig = {
     app: {
       environment: 'development',
@@ -16,14 +18,16 @@ describe('ConfigLoader', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
-  })
-
-  afterEach(() => {
+    process.env = { ...originalEnv }
     delete process.env.NODE_ENV
     delete process.env.DEBUG
     delete process.env.APP_SECRET_KEY
     delete process.env.APP_LOGGER_LEVELS
+    ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
+  })
+
+  afterAll(() => {
+    process.env = originalEnv
   })
 
   it('should load config from file', () => {
