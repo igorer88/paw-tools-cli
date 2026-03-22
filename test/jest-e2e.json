@@ -8,5 +8,10 @@
   },
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1"
-  }
+  },
+  "collectCoverageFrom": [
+    "../src/**/*.ts",
+    "../src/**/*.js"
+  ],
+  "coverageDirectory": "../coverage-e2e"
 }
