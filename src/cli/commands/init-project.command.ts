@@ -56,7 +56,7 @@ export class InitProjectCommand extends CommandRunner {
       placeholder: currentConfig.name,
       defaultValue: currentConfig.name,
       validate: (value) => {
-        if (value.length === 0) return 'Name is required!'
+        if (!value || value.length === 0) return 'Name is required!'
       }
     })
     if (isCancel(name)) {
@@ -323,9 +323,10 @@ export class InitProjectCommand extends CommandRunner {
 
       let yamlContent = stringifyYaml(composeFile)
 
+      const serviceRegex = new RegExp(`(${config.serviceName}:\\n[\\s\\S]*?image:)([^\\n]+)`, 'g')
       yamlContent = yamlContent.replace(
-        /image: ([^\n]+)/,
-        `image: $1\n    # For production with GHCR, uncomment and update:\n    # image: ghcr.io/your-username/your-repo:${config.imageVersion}`
+        serviceRegex,
+        `$1$2\n    # For production with GHCR, uncomment and update:\n    # image: ghcr.io/your-username/your-repo:${config.imageVersion}`
       )
 
       writeFileSync(dockerComposePath, yamlContent)
