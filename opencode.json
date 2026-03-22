@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "command": {
+    "init-feature": {
+      "description": "Init NestJs Feature",
+      "template": "Read the command definition at commands/init-feature.md and execute the instructions."
+    },
+    "test-backend": {
+      "description": "Write or update tests for backend applications",
+      "template": "Read the command definition at commands/test-backend.md and execute the instructions."
+    }
+  },
+  "mcp": {
+    "nestjs": {
+      "type": "local",
+      "command": [
+        "node",
+        "false"
+      ]
+    }
+  }
+}
