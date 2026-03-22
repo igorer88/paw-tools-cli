@@ -6,8 +6,12 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(@clack|sisteransi)/)"
+  ],
   "moduleNameMapper": {
-    "^@/(.*)$": "<rootDir>/../src/$1"
+    "^@/(.*)$": "<rootDir>/../src/$1",
+    "^@clack/prompts$": "<rootDir>/__mocks__/@clack/prompts.ts"
   },
   "collectCoverageFrom": [
     "../src/**/*.ts",
