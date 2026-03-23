@@ -59,14 +59,12 @@ export class InitProjectCommand extends CommandRunner {
       await this.updateDockerCompose(dockerConfig)
     }
 
-    s.stop('')
-    console.log('Changes applied:')
+    s.stop('Changes applied:')
     console.log('  ✓ package.json updated')
     if (existsSync(dockerComposePath)) {
       console.log('  ✓ docker-compose.yml updated')
     }
-    console.log('')
-    console.log('✔ Project initialized successfully.')
+    console.log('\n✔ Project initialized successfully.')
   }
 
   private async initializeInteractive(): Promise<void> {
