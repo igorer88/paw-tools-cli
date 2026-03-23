@@ -151,8 +151,8 @@ export class InitProjectCommand extends CommandRunner {
 
     const serviceName = await text({
       message: 'Enter Docker service name:',
-      placeholder: this.mainServiceName,
-      defaultValue: this.mainServiceName
+      placeholder: projectName,
+      defaultValue: projectName
     })
     if (isCancel(serviceName)) {
       cancel('Operation cancelled.')
