@@ -59,13 +59,14 @@ export class InitProjectCommand extends CommandRunner {
       await this.updateDockerCompose(dockerConfig)
     }
 
-    s.stop('Project initialized successfully.')
-
-    console.log('\nChanges applied:')
+    s.stop('')
+    console.log('Changes applied:')
     console.log('  ✓ package.json updated')
     if (existsSync(dockerComposePath)) {
       console.log('  ✓ docker-compose.yml updated')
     }
+    console.log('')
+    console.log('✔ Project initialized successfully.')
   }
 
   private async initializeInteractive(): Promise<void> {
@@ -77,6 +78,9 @@ export class InitProjectCommand extends CommandRunner {
       defaultValue: currentConfig.name,
       validate: (value) => {
         if (!value || value.length === 0) return 'Name is required!'
+        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)) {
+          return 'Name must be kebab-case (lowercase, numbers, hyphens)'
+        }
       }
     })
     if (isCancel(name)) {
@@ -97,7 +101,7 @@ export class InitProjectCommand extends CommandRunner {
     const versionFormat = await select({
       message: 'Select version format:',
       options: [
-        { value: 'semver', label: 'Semantic (1.0.0)' },
+        { value: 'semver', label: 'Semantic (0.1.0)' },
         { value: 'calver', label: 'Calendar (2024.03.1)' },
         { value: 'custom', label: 'Custom (any format)' }
       ]
@@ -388,13 +392,13 @@ export class InitProjectCommand extends CommandRunner {
   private getVersionPlaceholder(format: string): string {
     switch (format) {
       case 'semver':
-        return '1.0.0'
+        return '0.1.0'
       case 'calver':
         return '2024.03.1'
       case 'custom':
         return 'v1'
       default:
-        return '1.0.0'
+        return '0.1.0'
     }
   }
 
@@ -414,7 +418,8 @@ export class InitProjectCommand extends CommandRunner {
   }
 
   private validateVersion(value: string, format: string): string | undefined {
-    if (!value || value.length === 0) return 'Version is required!'
+    // Allow empty value - @clack/prompts will use defaultValue
+    if (!value || value.length === 0) return undefined
 
     switch (format) {
       case 'semver':

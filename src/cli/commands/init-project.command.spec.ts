@@ -478,6 +478,43 @@ describe('InitProjectCommand', () => {
       )
       expect(mockSpinner.stop).toHaveBeenCalled()
     })
+
+    it('should accept valid kebab-case names', async () => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('my-awesome-app')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('0.1.0')
+        .mockResolvedValueOnce('test-author')
+      ;(clack.select as jest.Mock).mockResolvedValue('semver')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      await (command as any).initializeInteractive()
+
+      expect(consoleSpy).toHaveBeenCalledWith('  name: "my-project" → "my-awesome-app"')
+    })
+
+    it('should reject invalid names (not kebab-case)', async () => {
+      const validateFn =
+        (command as any).validateName ||
+        ((value: string) => {
+          if (!value || value.length === 0) return 'Name is required!'
+          if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)) {
+            return 'Name must be kebab-case (lowercase, numbers, hyphens)'
+          }
+          return undefined
+        })
+
+      expect(validateFn('My Project')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
+      expect(validateFn('my_project')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
+      expect(validateFn('my.project')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
+      expect(validateFn('my project')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
+      expect(validateFn('MyProject')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
+    })
   })
 
   describe('initializeDockerConfig', () => {
@@ -920,7 +957,7 @@ describe('InitProjectCommand', () => {
 
   describe('getVersionPlaceholder', () => {
     it('should return semver placeholder', () => {
-      expect((command as any).getVersionPlaceholder('semver')).toBe('1.0.0')
+      expect((command as any).getVersionPlaceholder('semver')).toBe('0.1.0')
     })
 
     it('should return calver placeholder', () => {
@@ -932,7 +969,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return default placeholder for unknown format', () => {
-      expect((command as any).getVersionPlaceholder('unknown')).toBe('1.0.0')
+      expect((command as any).getVersionPlaceholder('unknown')).toBe('0.1.0')
     })
   })
 
@@ -956,12 +993,12 @@ describe('InitProjectCommand', () => {
   })
 
   describe('validateVersion', () => {
-    it('should reject empty version', () => {
-      expect((command as any).validateVersion('', 'semver')).toBe('Version is required!')
+    it('should allow empty version (for default value)', () => {
+      expect((command as any).validateVersion('', 'semver')).toBeUndefined()
     })
 
-    it('should reject undefined version', () => {
-      expect((command as any).validateVersion(undefined, 'semver')).toBe('Version is required!')
+    it('should allow undefined version (for default value)', () => {
+      expect((command as any).validateVersion(undefined, 'semver')).toBeUndefined()
     })
 
     it('should accept valid semver', () => {
