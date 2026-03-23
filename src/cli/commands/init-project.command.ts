@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { cancel, confirm, isCancel, select, spinner, text } from '@clack/prompts'
 import { Command, CommandRunner, Option } from 'nest-commander'
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { parseDocument, stringify as stringifyYaml } from 'yaml'
 
 interface InitProjectOptions {
   defaults?: boolean
@@ -30,6 +30,8 @@ interface DockerConfig {
   description: 'Initialize project from template'
 })
 export class InitProjectCommand extends CommandRunner {
+  private readonly mainServiceName = 'api'
+
   async run(_passedParam: string[], options?: InitProjectOptions): Promise<void> {
     if (options?.defaults) {
       await this.initializeWithDefaults()
@@ -149,8 +151,8 @@ export class InitProjectCommand extends CommandRunner {
 
     const serviceName = await text({
       message: 'Enter Docker service name:',
-      placeholder: projectName,
-      defaultValue: projectName
+      placeholder: this.mainServiceName,
+      defaultValue: this.mainServiceName
     })
     if (isCancel(serviceName)) {
       cancel('Operation cancelled.')
@@ -245,9 +247,9 @@ export class InitProjectCommand extends CommandRunner {
     }
 
     if (dockerConfig) {
-      changes.push(`docker-service: "api" → "${dockerConfig.serviceName}"`)
+      changes.push(`docker-service: "${this.mainServiceName}" → "${dockerConfig.serviceName}"`)
       changes.push(
-        `docker-image: "api:latest" → "${dockerConfig.projectName}:${dockerConfig.imageVersion}"`
+        `docker-image: "${this.mainServiceName}:latest" → "${dockerConfig.projectName}:${dockerConfig.imageVersion}"`
       )
       changes.push(`registry: "${dockerConfig.packageManager.toUpperCase()}_REGISTRY"`)
     }
@@ -300,34 +302,53 @@ export class InitProjectCommand extends CommandRunner {
 
     try {
       const fileContents = readFileSync(dockerComposePath, 'utf8')
-      const composeFile = parseYaml(fileContents)
+      const doc = parseDocument(fileContents)
 
-      if (composeFile.services?.api) {
-        const service = composeFile.services.api
-        const dockerImage = `${config.projectName}:${config.imageVersion}`
+      const servicesPair = (doc.contents as any).items.find(
+        (pair: any) => pair.key.value === 'services'
+      )
 
-        service.container_name = config.serviceName
-        service.image = dockerImage
+      if (!servicesPair) {
+        console.warn('services not found in docker-compose.yml')
+        return
+      }
 
-        composeFile.services[config.serviceName] = service
-        delete composeFile.services.api
+      const mainServicePair = servicesPair.value.items.find(
+        (pair: any) => pair.key.value === this.mainServiceName
+      )
 
-        if (service.build?.args) {
+      if (!mainServicePair) {
+        console.warn(`${this.mainServiceName} service not found in docker-compose.yml`)
+        return
+      }
+
+      mainServicePair.key.value = config.serviceName
+
+      const dockerImage = `${config.projectName}:${config.imageVersion}`
+      mainServicePair.value.set('container_name', config.serviceName)
+      mainServicePair.value.set('image', dockerImage)
+
+      const buildPair = mainServicePair.value.items.find((pair: any) => pair.key.value === 'build')
+      if (buildPair?.value) {
+        const argsPair = buildPair.value.items.find((pair: any) => pair.key.value === 'args')
+        if (argsPair?.value) {
           const registryArg = `${config.packageManager.toUpperCase()}_REGISTRY`
-          delete service.build.args.NPM_REGISTRY
-          delete service.build.args.YARN_REGISTRY
-          delete service.build.args.PNPM_REGISTRY
-          service.build.args[registryArg] = config.registryUrl
+          argsPair.value.delete('NPM_REGISTRY')
+          argsPair.value.delete('YARN_REGISTRY')
+          argsPair.value.delete('PNPM_REGISTRY')
+          argsPair.value.set(registryArg, config.registryUrl)
         }
       }
 
-      let yamlContent = stringifyYaml(composeFile)
+      let yamlContent = doc.toString()
 
-      const serviceRegex = new RegExp(`(${config.serviceName}:\\n[\\s\\S]*?image:)([^\\n]+)`, 'g')
-      yamlContent = yamlContent.replace(
-        serviceRegex,
-        `$1$2\n    # For production with GHCR, uncomment and update:\n    # image: ghcr.io/your-username/your-repo:${config.imageVersion}`
-      )
+      if (!yamlContent.includes('# image: ghcr.io/')) {
+        const serviceRegex = new RegExp(`(${config.serviceName}:\\n[\\s\\S]*?image:)([^\\n]+)`, 'g')
+        yamlContent = yamlContent.replace(
+          serviceRegex,
+          `$1$2\n    # For production with GHCR, uncomment and update:\n    # image: ghcr.io/your-username/your-repo:${config.imageVersion}`
+        )
+      }
 
       writeFileSync(dockerComposePath, yamlContent)
     } catch (error) {

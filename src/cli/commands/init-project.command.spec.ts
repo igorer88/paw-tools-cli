@@ -17,46 +17,133 @@ jest.mock('@clack/prompts', () => ({
   isCancel: jest.fn(() => false)
 }))
 
-jest.mock('yaml', () => ({
-  parse: jest.fn((content: string) => {
-    if (content === 'invalid yaml') throw new Error('Invalid YAML')
+jest.mock('yaml', () => {
+  const createMockDocument = (initialContent: string) => {
+    if (initialContent === 'invalid yaml') throw new Error('Invalid YAML')
+
+    const hasExistingGhcrComment = initialContent.includes('# image: ghcr.io/')
+
+    const createYamlMap = (data: Record<string, any>) => {
+      const items: any[] = []
+      for (const [key, value] of Object.entries(data)) {
+        items.push({
+          key: { value: key },
+          value:
+            typeof value === 'object' && value !== null && !Array.isArray(value)
+              ? createYamlMap(value)
+              : value
+        })
+      }
+      return {
+        items,
+        set: (k: string, v: any) => {
+          const existing = items.find((item: any) => item.key.value === k)
+          if (existing) {
+            existing.value = v
+          } else {
+            items.push({ key: { value: k }, value: v })
+          }
+        },
+        get: (k: string) => items.find((item: any) => item.key.value === k)?.value,
+        delete: (k: string) => {
+          const index = items.findIndex((item: any) => item.key.value === k)
+          if (index >= 0) items.splice(index, 1)
+        },
+        has: (k: string) => items.some((item: any) => item.key.value === k)
+      }
+    }
+
+    const apiServiceMap = createYamlMap({
+      container_name: 'api',
+      image: 'api:latest',
+      build: {
+        context: '.',
+        dockerfile: 'Dockerfile',
+        args: {
+          PNPM_REGISTRY: 'https://registry.npmjs.org/'
+        }
+      }
+    })
+
+    const servicesMap = createYamlMap({})
+    servicesMap.items.push({
+      key: { value: 'api' },
+      value: apiServiceMap
+    })
+
+    const rootMap = createYamlMap({})
+    rootMap.items.push({
+      key: { value: 'services' },
+      value: servicesMap
+    })
+
     return {
-      services: {
-        api: {
-          container_name: 'api',
-          image: 'api:latest',
-          build: {
-            args: {
-              PNPM_REGISTRY: 'https://registry.npmjs.org/'
+      contents: rootMap,
+      toString: () => {
+        let yaml = 'services:\n'
+        for (const serviceItem of servicesMap.items) {
+          const serviceName = serviceItem.key.value
+          const serviceValue = serviceItem.value
+          yaml += `  ${serviceName}:\n`
+          for (const propItem of serviceValue.items) {
+            const propName = propItem.key.value
+            const propValue = propItem.value
+            if (propName === 'args') {
+              yaml += '      args:\n'
+              for (const argItem of propValue.items) {
+                yaml += `        ${argItem.key.value}: "${argItem.value}"\n`
+              }
+            } else if (propName === 'build') {
+              yaml += '    build:\n'
+              for (const buildItem of propValue.items) {
+                if (buildItem.key.value === 'args') {
+                  yaml += '      args:\n'
+                  for (const argItem of buildItem.value.items) {
+                    yaml += `        ${argItem.key.value}: "${argItem.value}"\n`
+                  }
+                } else {
+                  yaml += `      ${buildItem.key.value}: ${buildItem.value}\n`
+                }
+              }
+            } else {
+              yaml += `    ${propName}: ${propValue}\n`
+            }
+          }
+          if (hasExistingGhcrComment) {
+            yaml += '    # image: ghcr.io/your-username/your-repo:your-tag\n'
+          }
+        }
+        return yaml
+      }
+    }
+  }
+
+  return {
+    parseDocument: jest.fn(createMockDocument),
+    stringify: jest.fn((obj: any) => {
+      const services = obj.services || {}
+      let yaml = 'services:\n'
+      for (const [serviceName, service] of Object.entries(services)) {
+        const s = service as Record<string, unknown>
+        yaml += `  ${serviceName}:\n`
+        yaml += `    container_name: ${s.container_name}\n`
+        yaml += `    image: ${s.image}\n`
+        if (s.build) {
+          const build = s.build as Record<string, unknown>
+          yaml += '    build:\n'
+          if (build.args) {
+            const args = build.args as Record<string, string>
+            yaml += '      args:\n'
+            for (const [key, value] of Object.entries(args)) {
+              yaml += `        ${key}: "${value}"\n`
             }
           }
         }
       }
-    }
-  }),
-  stringify: jest.fn((obj: any) => {
-    const services = obj.services || {}
-    let yaml = 'services:\n'
-    for (const [serviceName, service] of Object.entries(services)) {
-      const s = service as Record<string, unknown>
-      yaml += `  ${serviceName}:\n`
-      yaml += `    container_name: ${s.container_name}\n`
-      yaml += `    image: ${s.image}\n`
-      if (s.build) {
-        const build = s.build as Record<string, unknown>
-        yaml += '    build:\n'
-        if (build.args) {
-          const args = build.args as Record<string, string>
-          yaml += '      args:\n'
-          for (const [key, value] of Object.entries(args)) {
-            yaml += `        ${key}: "${value}"\n`
-          }
-        }
-      }
-    }
-    return yaml
-  })
-}))
+      return yaml
+    })
+  }
+})
 
 const mockExec = jest.fn()
 jest.mock('node:child_process', () => ({
@@ -674,6 +761,28 @@ describe('InitProjectCommand', () => {
 
       expect(writtenContent).toContain('# For production with GHCR, uncomment and update:')
       expect(writtenContent).toContain('# image: ghcr.io/your-username/your-repo:1.0.0')
+    })
+
+    it('should not add GHCR comment if one already exists', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue(
+        'services:\n  api:\n    image: api:latest\n    # image: ghcr.io/your-username/your-repo:your-tag'
+      )
+      let writtenContent = ''
+      ;(writeFileSync as jest.Mock).mockImplementation((_path: string, content: string) => {
+        writtenContent = content
+      })
+
+      await (command as any).updateDockerCompose({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(writtenContent).toContain('# image: ghcr.io/your-username/your-repo:your-tag')
+      expect(writtenContent).not.toContain('# For production with GHCR, uncomment and update:')
     })
 
     it('should handle YAML parse error', async () => {
