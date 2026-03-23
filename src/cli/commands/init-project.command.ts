@@ -47,7 +47,25 @@ export class InitProjectCommand extends CommandRunner {
     const config = await this.getDefaultConfig()
     await this.updatePackageJson(config)
 
+    const dockerComposePath = join(process.cwd(), 'docker-compose.yml')
+    if (existsSync(dockerComposePath)) {
+      const dockerConfig: DockerConfig = {
+        serviceName: config.name,
+        projectName: config.name,
+        imageVersion: 'latest',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      }
+      await this.updateDockerCompose(dockerConfig)
+    }
+
     s.stop('Project initialized successfully.')
+
+    console.log('\nChanges applied:')
+    console.log('  ✓ package.json updated')
+    if (existsSync(dockerComposePath)) {
+      console.log('  ✓ docker-compose.yml updated')
+    }
   }
 
   private async initializeInteractive(): Promise<void> {
@@ -76,13 +94,24 @@ export class InitProjectCommand extends CommandRunner {
       process.exit(0)
     }
 
+    const versionFormat = await select({
+      message: 'Select version format:',
+      options: [
+        { value: 'semver', label: 'Semantic (1.0.0)' },
+        { value: 'calver', label: 'Calendar (2024.03.1)' },
+        { value: 'custom', label: 'Custom (any format)' }
+      ]
+    })
+    if (isCancel(versionFormat)) {
+      cancel('Operation cancelled.')
+      process.exit(0)
+    }
+
     const version = await text({
       message: 'Enter project version:',
-      placeholder: currentConfig.version,
-      defaultValue: currentConfig.version,
-      validate: (value) => {
-        if (!/^\d+\.\d+\.\d+$/.test(value)) return 'Version must be semver format (x.y.z)!'
-      }
+      placeholder: this.getVersionPlaceholder(versionFormat as string),
+      defaultValue: this.getVersionDefault(versionFormat as string),
+      validate: (value) => this.validateVersion(value, versionFormat as string)
     })
     if (isCancel(version)) {
       cancel('Operation cancelled.')
@@ -207,7 +236,7 @@ export class InitProjectCommand extends CommandRunner {
       return {
         name: packageJson.name || 'my-project',
         description: packageJson.description || 'A JavaScript/TypeScript project',
-        version: packageJson.version || '1.0.0',
+        version: packageJson.version || '0.1.0',
         author: gitAuthor
       }
     } catch {
@@ -221,7 +250,7 @@ export class InitProjectCommand extends CommandRunner {
     return {
       name: 'my-project',
       description: 'A JavaScript/TypeScript project',
-      version: '1.0.0',
+      version: '0.1.0',
       author: gitAuthor
     }
   }
@@ -354,6 +383,50 @@ export class InitProjectCommand extends CommandRunner {
     } catch (error) {
       console.error('Failed to update docker-compose.yml:', error)
     }
+  }
+
+  private getVersionPlaceholder(format: string): string {
+    switch (format) {
+      case 'semver':
+        return '1.0.0'
+      case 'calver':
+        return '2024.03.1'
+      case 'custom':
+        return 'v1'
+      default:
+        return '1.0.0'
+    }
+  }
+
+  private getVersionDefault(format: string): string {
+    switch (format) {
+      case 'semver':
+        return '0.1.0'
+      case 'calver': {
+        const now = new Date()
+        return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.0`
+      }
+      case 'custom':
+        return '1'
+      default:
+        return '0.1.0'
+    }
+  }
+
+  private validateVersion(value: string, format: string): string | undefined {
+    if (!value || value.length === 0) return 'Version is required!'
+
+    switch (format) {
+      case 'semver':
+        if (!/^\d+\.\d+\.\d+/.test(value)) return 'Must be semver format (x.y.z)'
+        break
+      case 'calver':
+        if (!/^\d{4}\.\d{1,2}\.\d+/.test(value)) return 'Must be calver format (YYYY.M.PATCH)'
+        break
+      case 'custom':
+        break
+    }
+    return undefined
   }
 
   @Option({

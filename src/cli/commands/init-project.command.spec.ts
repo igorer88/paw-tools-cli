@@ -384,6 +384,100 @@ describe('InitProjectCommand', () => {
 
       expect(clack.cancel).toHaveBeenCalled()
     })
+
+    it('should cancel on version format selection cancel', async () => {
+      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.select as jest.Mock).mockResolvedValue(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
+        (val: unknown) => typeof val === 'symbol'
+      )
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as any)
+
+      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+
+      expect(clack.cancel).toHaveBeenCalled()
+    })
+
+    it('should show no changes message when values are same', async () => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('current-value')
+        .mockResolvedValueOnce('current-value')
+        .mockResolvedValueOnce('current-value')
+        .mockResolvedValueOnce('Git Name <git@email.com>')
+      ;(clack.select as jest.Mock).mockResolvedValue('semver')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({
+          name: 'current-value',
+          description: 'current-value',
+          version: 'current-value',
+          author: 'Git Name <git@email.com>'
+        })
+      )
+      mockExec.mockImplementation((cmd: string, cb: Function) => {
+        if (cmd.includes('user.name')) cb(null, 'Git Name\n')
+        else cb(null, 'git@email.com\n')
+      })
+
+      await (command as any).initializeInteractive()
+
+      expect(consoleSpy).toHaveBeenCalledWith('\nNo changes to apply.')
+    })
+
+    it('should use calver format when selected', async () => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('test-name')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('2024.03.1')
+        .mockResolvedValueOnce('test-author')
+      ;(clack.select as jest.Mock).mockResolvedValue('calver')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path.includes('package.json')
+      })
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      await (command as any).initializeInteractive()
+
+      expect(clack.select).toHaveBeenCalled()
+      expect(consoleSpy).toHaveBeenCalledWith('  version: "0.1.0" → "2024.03.1"')
+    })
+
+    it('should update both package.json and docker-compose.yml when docker exists', async () => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('test-name')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('1.0.0')
+        .mockResolvedValueOnce('test-author')
+        .mockResolvedValueOnce('test-service')
+        .mockResolvedValueOnce('latest')
+      ;(clack.select as jest.Mock).mockResolvedValueOnce('semver').mockResolvedValueOnce('pnpm')
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+
+      const mockSpinner = { start: jest.fn(), stop: jest.fn() }
+      ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
+
+      await (command as any).initializeInteractive()
+
+      expect(mockSpinner.start).toHaveBeenCalledWith(
+        'Updating package.json and docker-compose.yml...'
+      )
+      expect(mockSpinner.stop).toHaveBeenCalled()
+    })
   })
 
   describe('initializeDockerConfig', () => {
@@ -499,7 +593,7 @@ describe('InitProjectCommand', () => {
       expect(config).toEqual({
         name: 'my-project',
         description: 'A JavaScript/TypeScript project',
-        version: '1.0.0',
+        version: '0.1.0',
         author: expect.any(String)
       })
     })
@@ -514,7 +608,7 @@ describe('InitProjectCommand', () => {
       expect(config).toEqual({
         name: 'my-project',
         description: 'A JavaScript/TypeScript project',
-        version: '1.0.0',
+        version: '0.1.0',
         author: expect.any(String)
       })
     })
@@ -528,7 +622,7 @@ describe('InitProjectCommand', () => {
 
       expect(config.name).toBe('only-name')
       expect(config.description).toBe('A JavaScript/TypeScript project')
-      expect(config.version).toBe('1.0.0')
+      expect(config.version).toBe('0.1.0')
     })
   })
 
@@ -541,7 +635,7 @@ describe('InitProjectCommand', () => {
       expect(config).toEqual({
         name: 'my-project',
         description: 'A JavaScript/TypeScript project',
-        version: '1.0.0',
+        version: '0.1.0',
         author: expect.any(String)
       })
     })
@@ -725,6 +819,26 @@ describe('InitProjectCommand', () => {
         expect.any(Error)
       )
     })
+
+    it('should handle write error', async () => {
+      ;(existsSync as jest.Mock).mockReturnValue(true)
+      ;(readFileSync as jest.Mock).mockReturnValue('{}')
+      ;(writeFileSync as jest.Mock).mockImplementation(() => {
+        throw new Error('Write failed')
+      })
+
+      await (command as any).updatePackageJson({
+        name: 'test',
+        description: 'test',
+        version: '1.0.0',
+        author: 'test'
+      })
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to update package.json:',
+        expect.any(Error)
+      )
+    })
   })
 
   describe('updateDockerCompose', () => {
@@ -801,6 +915,91 @@ describe('InitProjectCommand', () => {
         'Failed to update docker-compose.yml:',
         expect.any(Error)
       )
+    })
+  })
+
+  describe('getVersionPlaceholder', () => {
+    it('should return semver placeholder', () => {
+      expect((command as any).getVersionPlaceholder('semver')).toBe('1.0.0')
+    })
+
+    it('should return calver placeholder', () => {
+      expect((command as any).getVersionPlaceholder('calver')).toBe('2024.03.1')
+    })
+
+    it('should return custom placeholder', () => {
+      expect((command as any).getVersionPlaceholder('custom')).toBe('v1')
+    })
+
+    it('should return default placeholder for unknown format', () => {
+      expect((command as any).getVersionPlaceholder('unknown')).toBe('1.0.0')
+    })
+  })
+
+  describe('getVersionDefault', () => {
+    it('should return semver default', () => {
+      expect((command as any).getVersionDefault('semver')).toBe('0.1.0')
+    })
+
+    it('should return calver default with current date', () => {
+      const result = (command as any).getVersionDefault('calver')
+      expect(result).toMatch(/^\d{4}\.\d{2}\.0$/)
+    })
+
+    it('should return custom default', () => {
+      expect((command as any).getVersionDefault('custom')).toBe('1')
+    })
+
+    it('should return default for unknown format', () => {
+      expect((command as any).getVersionDefault('unknown')).toBe('0.1.0')
+    })
+  })
+
+  describe('validateVersion', () => {
+    it('should reject empty version', () => {
+      expect((command as any).validateVersion('', 'semver')).toBe('Version is required!')
+    })
+
+    it('should reject undefined version', () => {
+      expect((command as any).validateVersion(undefined, 'semver')).toBe('Version is required!')
+    })
+
+    it('should accept valid semver', () => {
+      expect((command as any).validateVersion('1.0.0', 'semver')).toBeUndefined()
+      expect((command as any).validateVersion('0.1.0', 'semver')).toBeUndefined()
+      expect((command as any).validateVersion('10.20.30', 'semver')).toBeUndefined()
+    })
+
+    it('should reject invalid semver', () => {
+      expect((command as any).validateVersion('abc', 'semver')).toBe(
+        'Must be semver format (x.y.z)'
+      )
+      expect((command as any).validateVersion('1.0', 'semver')).toBe(
+        'Must be semver format (x.y.z)'
+      )
+      expect((command as any).validateVersion('v1.0.0', 'semver')).toBe(
+        'Must be semver format (x.y.z)'
+      )
+    })
+
+    it('should accept valid calver', () => {
+      expect((command as any).validateVersion('2024.03.1', 'calver')).toBeUndefined()
+      expect((command as any).validateVersion('2024.3.0', 'calver')).toBeUndefined()
+    })
+
+    it('should reject invalid calver', () => {
+      expect((command as any).validateVersion('abc', 'calver')).toBe(
+        'Must be calver format (YYYY.M.PATCH)'
+      )
+      expect((command as any).validateVersion('1.0.0', 'calver')).toBe(
+        'Must be calver format (YYYY.M.PATCH)'
+      )
+    })
+
+    it('should accept any custom format', () => {
+      expect((command as any).validateVersion('anything', 'custom')).toBeUndefined()
+      expect((command as any).validateVersion('v1', 'custom')).toBeUndefined()
+      expect((command as any).validateVersion('release-1.0', 'custom')).toBeUndefined()
     })
   })
 
