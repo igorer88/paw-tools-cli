@@ -501,10 +501,11 @@ describe('InitProjectCommand', () => {
     })
 
     it('should use calver format when selected', async () => {
+      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
       ;(clack.text as jest.Mock)
         .mockResolvedValueOnce('test-name')
         .mockResolvedValueOnce('test-desc')
-        .mockResolvedValueOnce('2024.03.1')
+        .mockResolvedValueOnce(todayCalver)
         .mockResolvedValueOnce('test-author')
       ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
@@ -513,7 +514,7 @@ describe('InitProjectCommand', () => {
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(clack.select).toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith('  version: "0.1.0" → "2024.03.1"')
+      expect(consoleSpy).toHaveBeenCalledWith(`  version: "0.1.0" → "${todayCalver}"`)
     })
 
     it('should update both package.json and docker-compose.yml when docker exists', async () => {
@@ -1060,8 +1061,9 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return calver placeholder', () => {
+      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
       expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('calver')).toBe(
-        '2024.03.1'
+        todayCalver
       )
     })
 
@@ -1084,8 +1086,9 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return calver default with current date', () => {
+      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
       const result = (command as Testable<InitProjectCommand>)['getVersionDefault']('calver')
-      expect(result).toMatch(/^\d{4}\.\d{2}\.0$/)
+      expect(result).toBe(todayCalver)
     })
 
     it('should return custom default', () => {
@@ -1164,6 +1167,18 @@ describe('InitProjectCommand', () => {
       expect(
         (command as Testable<InitProjectCommand>)['validateVersion']('release-1.0', 'custom')
       ).toBeUndefined()
+    })
+  })
+
+  describe('getTodayCalver', () => {
+    it('should return today in YYYY.MM.DD format', () => {
+      const result = (command as Testable<InitProjectCommand>)['getTodayCalver']()
+      expect(result).toMatch(/^\d{4}\.\d{2}\.\d{2}$/)
+      const [year, month, day] = result.split('.').map(Number)
+      const today = new Date()
+      expect(year).toBe(today.getFullYear())
+      expect(month).toBe(today.getMonth() + 1)
+      expect(day).toBe(today.getDate())
     })
   })
 

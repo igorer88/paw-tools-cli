@@ -48,7 +48,7 @@ export class InitProjectCommand extends CommandRunner {
       case 'semver':
         return '0.1.0'
       case 'calver':
-        return '2024.03.1'
+        return this.getTodayCalver()
       case 'custom':
         return 'v1'
       default:
@@ -60,15 +60,18 @@ export class InitProjectCommand extends CommandRunner {
     switch (format) {
       case 'semver':
         return '0.1.0'
-      case 'calver': {
-        const now = new Date()
-        return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.0`
-      }
+      case 'calver':
+        return this.getTodayCalver()
       case 'custom':
         return '1'
       default:
         return '0.1.0'
     }
+  }
+
+  private getTodayCalver(): string {
+    const now = new Date()
+    return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`
   }
 
   private validateVersion(value: string, format: string): string | undefined {
