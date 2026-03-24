@@ -528,15 +528,11 @@ describe('InitProjectCommand', () => {
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.exists.mockReturnValue(true) // docker-compose.yml exists
 
-      const mockSpinner = { start: jest.fn(), stop: jest.fn() }
-      ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
-
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(mockSpinner.start).toHaveBeenCalledWith(
-        'Updating package.json and docker-compose.yml...'
-      )
-      expect(mockSpinner.stop).toHaveBeenCalled()
+      expect(consoleSpy).toHaveBeenCalledWith('\n✔ Project initialized successfully.')
+      expect(mockFileHandler.writeJson).toHaveBeenCalled()
+      expect(mockFileHandler.writeFile).toHaveBeenCalled()
     })
 
     it('should accept valid kebab-case names', async () => {
