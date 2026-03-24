@@ -79,6 +79,33 @@ Interfaces should NOT be prefixed with `I`. The following ESLint rule is enforce
 ]
 ```
 
+### SOLID Principles
+
+Apply these principles for maintainable, scalable code:
+
+- **S**ingle Responsibility: Each class/service has one reason to change
+- **O**pen/Closed: Open for extension, closed for modification
+- **L**iskov Substitution: Subtypes must be substitutable for base types
+- **I**nterface Segregation: Prefer small, focused interfaces over large ones
+- **D**ependency Inversion: Depend on abstractions, not concretions
+
+Example of ISP (Interface Segregation):
+
+```typescript
+// Instead of one large interface:
+interface FileHandler {
+  read(): void
+  write(): void
+  delete(): void
+  exists(): boolean
+}
+
+// Split into focused interfaces:
+interface FileReader { read(): void }
+interface FileWriter { write(): void }
+interface FileSystem { exists(): boolean }
+```
+
 ### Import Organization (enforced by `import-x/order`)
 
 Order groups (each group separated by blank line, alphabetically sorted):
@@ -114,7 +141,35 @@ src/
 │   └── enums/
 └── shared/                 # Shared utilities
     ├── errors/             # Error handling
+    ├── file-handler/       # File operations (see FileHandler Module)
     └── utils.helper.ts
+```
+
+### Method Ordering (class organization)
+
+Class members should be ordered:
+1. `readonly` properties (injected dependencies)
+2. Constructor (dependency injection)
+3. Private methods (helpers, business logic)
+4. Protected methods (subclass hooks)
+5. Public methods (entry points, command handlers) - **LAST**
+
+Example:
+
+```typescript
+class MyCommand extends CommandRunner {
+  private readonly logger = new Logger(MyCommand.name)
+  private readonly fileHandler: FileHandlerService
+
+  constructor() {
+    super()
+    this.fileHandler = new FileHandlerService()
+  }
+
+  private validateInput(): void {}  // Private helpers - ABOVE
+
+  async run(): Promise<void> {}    // Public entry - BELOW
+}
 ```
 
 ## Error Handling Patterns
@@ -220,8 +275,75 @@ Husky is configured. Run `pnpm prepare` after initial clone to install hooks.
 - **class-validator, class-transformer**: DTO validation/transformation
 - **joi**: Environment validation
 - **jest, ts-jest**: Testing
-- **eslint, prettier**: Code quality
+- **biome**: Code quality (linting and formatting)
 - **swc**: Fast TypeScript compilation
+
+## FileHandler Module
+
+All file operations MUST use `FileHandlerService`. Never use `fs` module directly in commands.
+
+### Location
+
+```
+src/shared/file-handler/
+├── interfaces/
+│   ├── file-reader.interface.ts
+│   ├── file-writer.interface.ts
+│   ├── file-system.interface.ts
+│   └── yaml-handler.interface.ts
+├── file-handler.service.ts
+├── file-handler.module.ts
+└── index.ts
+```
+
+### Usage
+
+```typescript
+import { FileHandlerService } from '@/shared/file-handler'
+
+export class MyCommand extends CommandRunner {
+  private readonly fileHandler: FileHandlerService
+
+  constructor() {
+    super()
+    this.fileHandler = new FileHandlerService()
+  }
+
+  async execute() {
+    const data = await this.fileHandler.readJson<MyConfig>('config.json')
+    await this.fileHandler.writeJson('output.json', data)
+  }
+}
+```
+
+### Available Methods
+
+| Interface | Method | Description |
+|-----------|--------|-------------|
+| FileReader | `readFile(path, encoding?)` | Read file as string |
+| FileReader | `readJson<T>(path)` | Read and parse JSON |
+| FileWriter | `writeFile(path, content)` | Write string to file |
+| FileWriter | `writeJson(path, data)` | Stringify and write JSON |
+| YamlHandler | `readYaml<T>(path)` | Read and parse YAML |
+| YamlHandler | `writeYaml(path, data)` | Dump and write YAML |
+| FileSystem | `exists(path)` | Check if path exists |
+| FileSystem | `ensureDir(path)` | Create directory recursively |
+| FileSystem | `createSymlink(source, target, type)` | Create symlink |
+
+### File Structure After Refactor
+
+```
+src/shared/file-handler/
+├── interfaces/
+│   ├── file-reader.interface.ts    # Read operations
+│   ├── file-writer.interface.ts    # Write operations
+│   ├── file-system.interface.ts     # File system operations
+│   ├── yaml-handler.interface.ts   # YAML operations
+│   └── index.ts
+├── file-handler.service.ts         # Implementation
+├── file-handler.module.ts          # NestJS module
+└── index.ts                        # Re-exports
+```
 
 ## Additional Notes
 

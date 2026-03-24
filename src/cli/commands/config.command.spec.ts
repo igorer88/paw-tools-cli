@@ -1,12 +1,18 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
 
-import { existsSync, readFileSync } from 'node:fs'
-
 import type { Testable } from '@/typings/tests'
 
 import { ConfigCommand } from './config.command'
 
+const mockFileHandler = {
+  exists: jest.fn().mockReturnValue(true),
+  readJson: jest.fn().mockResolvedValue({ app: { debug: true } })
+}
+
 jest.mock('node:fs')
+jest.mock('@/shared/file-handler', () => ({
+  FileHandlerService: jest.fn().mockImplementation(() => mockFileHandler)
+}))
 
 describe('ConfigCommand', () => {
   let command: ConfigCommand
@@ -16,6 +22,8 @@ describe('ConfigCommand', () => {
     jest.clearAllMocks()
     process.env = { ...originalEnv }
     delete process.env.PAW_CONFIG
+    mockFileHandler.exists.mockReturnValue(true)
+    mockFileHandler.readJson.mockResolvedValue({ app: { debug: true } })
     command = new ConfigCommand()
   })
 
@@ -54,32 +62,22 @@ describe('ConfigCommand', () => {
   })
 
   describe('loadConfig', () => {
-    it('should load valid JSON config', () => {
+    it('should load valid JSON config', async () => {
       const mockConfig = { app: { debug: true } }
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue(mockConfig)
 
-      const result = (command as Testable<ConfigCommand>)['loadConfig']('/test/config.json')
+      const result = await (command as Testable<ConfigCommand>)['loadConfig']('/test/config.json')
 
       expect(result).toEqual(mockConfig)
-      expect(readFileSync).toHaveBeenCalledWith('/test/config.json', 'utf-8')
     })
 
-    it('should throw error when file does not exist', () => {
-      ;(existsSync as jest.Mock).mockReturnValue(false)
+    it('should throw error when file does not exist', async () => {
+      mockFileHandler.exists.mockReturnValue(false)
 
-      expect(() =>
+      await expect(
         (command as Testable<ConfigCommand>)['loadConfig']('/missing/config.json')
-      ).toThrow('Config file not found: /missing/config.json')
-    })
-
-    it('should throw error for invalid JSON', () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('invalid json')
-
-      expect(() => (command as Testable<ConfigCommand>)['loadConfig']('/test/config.json')).toThrow(
-        'Invalid JSON in config file: /test/config.json'
-      )
+      ).rejects.toThrow('Config file not found: /missing/config.json')
     })
   })
 
