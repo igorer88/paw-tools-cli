@@ -1,4 +1,8 @@
+// biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
+
 import { existsSync, readFileSync } from 'node:fs'
+
+import type { Testable } from '@/typings/tests'
 
 import { ConfigCommand } from './config.command'
 
@@ -21,18 +25,20 @@ describe('ConfigCommand', () => {
 
   describe('resolveConfigPath', () => {
     it('should return custom path when provided', () => {
-      const result = (command as any).resolveConfigPath('/custom/config.json')
+      const result = (command as Testable<ConfigCommand>)['resolveConfigPath'](
+        '/custom/config.json'
+      )
       expect(result).toBe('/custom/config.json')
     })
 
     it('should return PAW_CONFIG env var when set', () => {
       process.env.PAW_CONFIG = '/env/config.json'
-      const result = (command as any).resolveConfigPath()
+      const result = (command as Testable<ConfigCommand>)['resolveConfigPath']()
       expect(result).toBe('/env/config.json')
     })
 
     it('should return default path when no custom path or env var', () => {
-      const result = (command as any).resolveConfigPath()
+      const result = (command as Testable<ConfigCommand>)['resolveConfigPath']()
       expect(result).toContain('config')
       expect(result).toContain('config.json')
       expect(result).not.toContain('.paw-tools')
@@ -40,7 +46,9 @@ describe('ConfigCommand', () => {
 
     it('should prioritize custom path over env var', () => {
       process.env.PAW_CONFIG = '/env/config.json'
-      const result = (command as any).resolveConfigPath('/custom/config.json')
+      const result = (command as Testable<ConfigCommand>)['resolveConfigPath'](
+        '/custom/config.json'
+      )
       expect(result).toBe('/custom/config.json')
     })
   })
@@ -51,7 +59,7 @@ describe('ConfigCommand', () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
       ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
 
-      const result = (command as any).loadConfig('/test/config.json')
+      const result = (command as Testable<ConfigCommand>)['loadConfig']('/test/config.json')
 
       expect(result).toEqual(mockConfig)
       expect(readFileSync).toHaveBeenCalledWith('/test/config.json', 'utf-8')
@@ -60,16 +68,16 @@ describe('ConfigCommand', () => {
     it('should throw error when file does not exist', () => {
       ;(existsSync as jest.Mock).mockReturnValue(false)
 
-      expect(() => (command as any).loadConfig('/missing/config.json')).toThrow(
-        'Config file not found: /missing/config.json'
-      )
+      expect(() =>
+        (command as Testable<ConfigCommand>)['loadConfig']('/missing/config.json')
+      ).toThrow('Config file not found: /missing/config.json')
     })
 
     it('should throw error for invalid JSON', () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
       ;(readFileSync as jest.Mock).mockReturnValue('invalid json')
 
-      expect(() => (command as any).loadConfig('/test/config.json')).toThrow(
+      expect(() => (command as Testable<ConfigCommand>)['loadConfig']('/test/config.json')).toThrow(
         'Invalid JSON in config file: /test/config.json'
       )
     })
@@ -79,19 +87,21 @@ describe('ConfigCommand', () => {
     it('should accept valid config object', () => {
       const config = { app: { debug: true } }
 
-      expect(() => (command as any).validateConfig(config)).not.toThrow()
+      expect(() => (command as Testable<ConfigCommand>)['validateConfig'](config)).not.toThrow()
     })
 
     it('should throw error for null config', () => {
-      expect(() => (command as any).validateConfig(null)).toThrow(
+      expect(() => (command as Testable<ConfigCommand>)['validateConfig'](null)).toThrow(
         'Config must be a valid JSON object'
       )
     })
 
     it('should throw error for non-object config', () => {
-      expect(() => (command as any).validateConfig('string')).toThrow(
-        'Config must be a valid JSON object'
-      )
+      expect(() =>
+        (command as Testable<ConfigCommand>)['validateConfig'](
+          'string' as unknown as Record<string, unknown>
+        )
+      ).toThrow('Config must be a valid JSON object')
     })
   })
 

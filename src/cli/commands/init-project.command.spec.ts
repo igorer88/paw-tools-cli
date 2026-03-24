@@ -1,10 +1,16 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+// biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
+
+import { existsSync } from 'node:fs'
+import { readFile, writeFile } from 'node:fs/promises'
 
 import * as clack from '@clack/prompts'
+
+import type { Testable } from '@/typings/tests'
 
 import { InitProjectCommand } from './init-project.command'
 
 jest.mock('node:fs')
+jest.mock('node:fs/promises')
 jest.mock('@clack/prompts', () => ({
   text: jest.fn(),
   confirm: jest.fn(),
@@ -18,38 +24,44 @@ jest.mock('@clack/prompts', () => ({
 }))
 
 jest.mock('yaml', () => {
+  interface MockYamlPair {
+    key: { value: string }
+    value: unknown
+    items?: MockYamlPair[]
+  }
+
   const createMockDocument = (initialContent: string) => {
     if (initialContent === 'invalid yaml') throw new Error('Invalid YAML')
 
     const hasExistingGhcrComment = initialContent.includes('# image: ghcr.io/')
 
-    const createYamlMap = (data: Record<string, any>) => {
-      const items: any[] = []
+    const createYamlMap = (data: Record<string, unknown>) => {
+      const items: MockYamlPair[] = []
       for (const [key, value] of Object.entries(data)) {
         items.push({
           key: { value: key },
           value:
             typeof value === 'object' && value !== null && !Array.isArray(value)
-              ? createYamlMap(value)
+              ? createYamlMap(value as Record<string, unknown>)
               : value
         })
       }
       return {
         items,
-        set: (k: string, v: any) => {
-          const existing = items.find((item: any) => item.key.value === k)
+        set: (k: string, v: unknown) => {
+          const existing = items.find((item) => item.key.value === k)
           if (existing) {
             existing.value = v
           } else {
             items.push({ key: { value: k }, value: v })
           }
         },
-        get: (k: string) => items.find((item: any) => item.key.value === k)?.value,
+        get: (k: string) => items.find((item) => item.key.value === k)?.value,
         delete: (k: string) => {
-          const index = items.findIndex((item: any) => item.key.value === k)
+          const index = items.findIndex((item) => item.key.value === k)
           if (index >= 0) items.splice(index, 1)
         },
-        has: (k: string) => items.some((item: any) => item.key.value === k)
+        has: (k: string) => items.some((item) => item.key.value === k)
       }
     }
 
@@ -83,30 +95,39 @@ jest.mock('yaml', () => {
         let yaml = 'services:\n'
         for (const serviceItem of servicesMap.items) {
           const serviceName = serviceItem.key.value
-          const serviceValue = serviceItem.value
+          const serviceValue = serviceItem.value as MockYamlPair
           yaml += `  ${serviceName}:\n`
-          for (const propItem of serviceValue.items) {
-            const propName = propItem.key.value
-            const propValue = propItem.value
-            if (propName === 'args') {
-              yaml += '      args:\n'
-              for (const argItem of propValue.items) {
-                yaml += `        ${argItem.key.value}: "${argItem.value}"\n`
-              }
-            } else if (propName === 'build') {
-              yaml += '    build:\n'
-              for (const buildItem of propValue.items) {
-                if (buildItem.key.value === 'args') {
-                  yaml += '      args:\n'
-                  for (const argItem of buildItem.value.items) {
+          if (serviceValue.items) {
+            for (const propItem of serviceValue.items) {
+              const propName = propItem.key.value
+              const propValue = propItem.value as MockYamlPair
+              if (propName === 'args') {
+                yaml += '      args:\n'
+                if (propValue.items) {
+                  for (const argItem of propValue.items) {
                     yaml += `        ${argItem.key.value}: "${argItem.value}"\n`
                   }
-                } else {
-                  yaml += `      ${buildItem.key.value}: ${buildItem.value}\n`
                 }
+              } else if (propName === 'build') {
+                yaml += '    build:\n'
+                if (propValue.items) {
+                  for (const buildItem of propValue.items) {
+                    if (buildItem.key.value === 'args') {
+                      yaml += '      args:\n'
+                      const argsValue = buildItem.value as MockYamlPair
+                      if (argsValue.items) {
+                        for (const argItem of argsValue.items) {
+                          yaml += `        ${argItem.key.value}: "${argItem.value}"\n`
+                        }
+                      }
+                    } else {
+                      yaml += `      ${buildItem.key.value}: ${buildItem.value}\n`
+                    }
+                  }
+                }
+              } else {
+                yaml += `    ${propName}: ${propValue}\n`
               }
-            } else {
-              yaml += `    ${propName}: ${propValue}\n`
             }
           }
           if (hasExistingGhcrComment) {
@@ -120,8 +141,8 @@ jest.mock('yaml', () => {
 
   return {
     parseDocument: jest.fn(createMockDocument),
-    stringify: jest.fn((obj: any) => {
-      const services = obj.services || {}
+    stringify: jest.fn((obj: Record<string, unknown>) => {
+      const services = (obj.services || {}) as Record<string, unknown>
       let yaml = 'services:\n'
       for (const [serviceName, service] of Object.entries(services)) {
         const s = service as Record<string, unknown>
@@ -141,13 +162,20 @@ jest.mock('yaml', () => {
         }
       }
       return yaml
-    })
+    }),
+    isMap: jest.fn((node: unknown) => node && typeof node === 'object' && 'items' in node),
+    isPair: jest.fn(
+      (node: unknown) => node && typeof node === 'object' && 'key' in node && 'value' in node
+    ),
+    isScalar: jest.fn(
+      (node: unknown) => node && typeof node === 'object' && 'value' in node && !('items' in node)
+    )
   }
 })
 
 const mockExec = jest.fn()
 jest.mock('node:child_process', () => ({
-  exec: (...args: any[]) => mockExec(...args)
+  exec: (...args: unknown[]) => mockExec(...args)
 }))
 
 describe('InitProjectCommand', () => {
@@ -176,7 +204,9 @@ describe('InitProjectCommand', () => {
 
   describe('run', () => {
     it('should call initializeWithDefaults when --defaults is set', async () => {
-      const spy = jest.spyOn(command as any, 'initializeWithDefaults').mockResolvedValue(undefined)
+      const spy = jest
+        .spyOn(command as Testable<InitProjectCommand>, 'initializeWithDefaults')
+        .mockResolvedValue(undefined)
 
       await command.run([], { defaults: true })
 
@@ -184,7 +214,9 @@ describe('InitProjectCommand', () => {
     })
 
     it('should call initializeInteractive when no --defaults flag', async () => {
-      const spy = jest.spyOn(command as any, 'initializeInteractive').mockResolvedValue(undefined)
+      const spy = jest
+        .spyOn(command as Testable<InitProjectCommand>, 'initializeInteractive')
+        .mockResolvedValue(undefined)
 
       await command.run([])
 
@@ -197,12 +229,14 @@ describe('InitProjectCommand', () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({ name: 'old', description: 'old', version: '0.0.0', author: 'old' })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeWithDefaults()
+      await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
 
       expect(mockSpinner.start).toHaveBeenCalled()
       expect(mockSpinner.stop).toHaveBeenCalled()
@@ -212,9 +246,11 @@ describe('InitProjectCommand', () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
       ;(existsSync as jest.Mock).mockReturnValue(false)
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeWithDefaults()
+      await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
 
       expect(consoleWarnSpy).toHaveBeenCalledWith('package.json not found, skipping update.')
     })
@@ -227,7 +263,7 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'current-name',
           description: 'current-desc',
@@ -235,9 +271,11 @@ describe('InitProjectCommand', () => {
           author: 'current-author'
         })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(clack.text).toHaveBeenCalledTimes(4)
       expect(clack.confirm).toHaveBeenCalledTimes(1)
@@ -253,7 +291,7 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'current-name',
           description: 'current-desc',
@@ -261,9 +299,11 @@ describe('InitProjectCommand', () => {
           author: 'current-author'
         })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(consoleSpy).toHaveBeenCalledWith('\nChanges to be applied:')
       expect(consoleSpy).toHaveBeenCalledWith('  name: "current-name" → "new-name"')
@@ -275,14 +315,16 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation()
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(clack.cancel).toHaveBeenCalledWith('Operation cancelled.')
-      expect(exitSpy).toHaveBeenCalledWith(0)
+      expect(_exitSpy).toHaveBeenCalledWith(0)
     })
 
     it('should cancel on user cancel for name', async () => {
@@ -291,15 +333,17 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
-      expect(exitSpy).toHaveBeenCalledWith(0)
+      expect(_exitSpy).toHaveBeenCalledWith(0)
     })
 
     it('should cancel on user cancel for description', async () => {
@@ -312,12 +356,14 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -333,12 +379,14 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -355,12 +403,14 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -374,13 +424,17 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -394,13 +448,17 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeInteractive()).rejects.toThrow('process.exit')
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeInteractive']()
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -416,7 +474,7 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'current-value',
           description: 'current-value',
@@ -424,12 +482,14 @@ describe('InitProjectCommand', () => {
           author: 'Git Name <git@email.com>'
         })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => {
-        if (cmd.includes('user.name')) cb(null, 'Git Name\n')
-        else cb(null, 'git@email.com\n')
-      })
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
+          if (_cmd.includes('user.name')) cb(null, 'Git Name\n')
+          else cb(null, 'git@email.com\n')
+        }
+      )
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(consoleSpy).toHaveBeenCalledWith('\nNo changes to apply.')
     })
@@ -445,10 +505,12 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(clack.select).toHaveBeenCalled()
       expect(consoleSpy).toHaveBeenCalledWith('  version: "0.1.0" → "2024.03.1"')
@@ -465,13 +527,15 @@ describe('InitProjectCommand', () => {
       ;(clack.select as jest.Mock).mockResolvedValueOnce('semver').mockResolvedValueOnce('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(mockSpinner.start).toHaveBeenCalledWith(
         'Updating package.json and docker-compose.yml...'
@@ -490,17 +554,19 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      await (command as any).initializeInteractive()
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(consoleSpy).toHaveBeenCalledWith('  name: "my-project" → "my-awesome-app"')
     })
 
     it('should reject invalid names (not kebab-case)', async () => {
       const validateFn =
-        (command as any).validateName ||
+        (command as Testable<InitProjectCommand>)['validateName'] ||
         ((value: string) => {
           if (!value || value.length === 0) return 'Name is required!'
           if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)) {
@@ -521,7 +587,9 @@ describe('InitProjectCommand', () => {
     it('should return null when no docker-compose.yml exists', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(false)
 
-      const result = await (command as any).initializeDockerConfig('my-project')
+      const result = await (command as Testable<InitProjectCommand>)['initializeDockerConfig'](
+        'my-project'
+      )
 
       expect(result).toBeNull()
     })
@@ -531,7 +599,9 @@ describe('InitProjectCommand', () => {
       ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
       ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
 
-      const result = await (command as any).initializeDockerConfig('my-project')
+      const result = await (command as Testable<InitProjectCommand>)['initializeDockerConfig'](
+        'my-project'
+      )
 
       expect(result).toEqual({
         serviceName: 'my-service',
@@ -546,13 +616,13 @@ describe('InitProjectCommand', () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
       ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
-        'process.exit'
-      )
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -565,13 +635,13 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
-        'process.exit'
-      )
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -583,13 +653,13 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
-      }) as any)
+      }) as (code?: number) => never)
 
-      await expect((command as any).initializeDockerConfig('my-project')).rejects.toThrow(
-        'process.exit'
-      )
+      await expect(
+        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
+      ).rejects.toThrow('process.exit')
 
       expect(clack.cancel).toHaveBeenCalled()
     })
@@ -598,7 +668,7 @@ describe('InitProjectCommand', () => {
   describe('getCurrentConfig', () => {
     it('should return current values from package.json with git author', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'existing-name',
           description: 'existing-desc',
@@ -606,12 +676,14 @@ describe('InitProjectCommand', () => {
           author: 'old-author'
         })
       )
-      mockExec.mockImplementation((cmd: string, cb: Function) => {
-        if (cmd.includes('user.name')) cb(null, 'Git User\n')
-        else cb(null, 'git@example.com\n')
-      })
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
+          if (_cmd.includes('user.name')) cb(null, 'Git User\n')
+          else cb(null, 'git@example.com\n')
+        }
+      )
 
-      const config = await (command as any).getCurrentConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
       expect(config).toEqual({
         name: 'existing-name',
@@ -623,9 +695,11 @@ describe('InitProjectCommand', () => {
 
     it('should return defaults when no package.json exists', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(false)
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      const config = await (command as any).getCurrentConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
       expect(config).toEqual({
         name: 'my-project',
@@ -637,10 +711,12 @@ describe('InitProjectCommand', () => {
 
     it('should handle malformed package.json', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('invalid json')
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      ;(readFile as jest.Mock).mockReturnValue('invalid json')
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      const config = await (command as any).getCurrentConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
       expect(config).toEqual({
         name: 'my-project',
@@ -652,10 +728,12 @@ describe('InitProjectCommand', () => {
 
     it('should use defaults for missing fields in package.json', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ name: 'only-name' }))
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      ;(readFile as jest.Mock).mockReturnValue(JSON.stringify({ name: 'only-name' }))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      const config = await (command as any).getCurrentConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
       expect(config.name).toBe('only-name')
       expect(config.description).toBe('A JavaScript/TypeScript project')
@@ -665,9 +743,11 @@ describe('InitProjectCommand', () => {
 
   describe('getDefaultConfig', () => {
     it('should return default config with generic description', async () => {
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(null, 'name\nemail\n'))
+      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
+        cb(null, 'name\nemail\n')
+      )
 
-      const config = await (command as any).getDefaultConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getDefaultConfig']()
 
       expect(config).toEqual({
         name: 'my-project',
@@ -678,9 +758,12 @@ describe('InitProjectCommand', () => {
     })
 
     it('should use fallback author when git fails', async () => {
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(new Error('git error')))
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) =>
+          cb(new Error('git error'))
+      )
 
-      const config = await (command as any).getDefaultConfig()
+      const config = await (command as Testable<InitProjectCommand>)['getDefaultConfig']()
 
       expect(config.author).toBe('Unknown <unknown@example.com>')
     })
@@ -696,7 +779,10 @@ describe('InitProjectCommand', () => {
       }
       const updated = { ...current }
 
-      const changes = (command as any).getConfigChanges(current, updated)
+      const changes = (command as Testable<InitProjectCommand>)['getConfigChanges'](
+        current,
+        updated
+      )
 
       expect(changes).toEqual([])
     })
@@ -715,7 +801,10 @@ describe('InitProjectCommand', () => {
         author: 'old-author'
       }
 
-      const changes = (command as any).getConfigChanges(current, updated)
+      const changes = (command as Testable<InitProjectCommand>)['getConfigChanges'](
+        current,
+        updated
+      )
 
       expect(changes).toEqual(['name: "old-name" → "new-name"', 'version: "1.0.0" → "2.0.0"'])
     })
@@ -734,7 +823,10 @@ describe('InitProjectCommand', () => {
         author: 'new-author'
       }
 
-      const changes = (command as any).getConfigChanges(current, updated)
+      const changes = (command as Testable<InitProjectCommand>)['getConfigChanges'](
+        current,
+        updated
+      )
 
       expect(changes).toHaveLength(4)
       expect(changes).toContain('name: "old-name" → "new-name"')
@@ -759,7 +851,11 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       }
 
-      const changes = (command as any).getConfigChanges(current, updated, dockerConfig)
+      const changes = (command as Testable<InitProjectCommand>)['getConfigChanges'](
+        current,
+        updated,
+        dockerConfig
+      )
 
       expect(changes).toHaveLength(3)
       expect(changes).toContain('docker-service: "api" → "my-service"')
@@ -770,47 +866,58 @@ describe('InitProjectCommand', () => {
 
   describe('getGitAuthor', () => {
     it('should return formatted author string', async () => {
-      mockExec.mockImplementation((cmd: string, cb: Function) => {
-        if (cmd.includes('user.name')) cb(null, 'John Doe\n')
-        else cb(null, 'john@example.com\n')
-      })
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
+          if (_cmd.includes('user.name')) cb(null, 'John Doe\n')
+          else cb(null, 'john@example.com\n')
+        }
+      )
 
-      const result = await (command as any).getGitAuthor()
+      const result = await (command as Testable<InitProjectCommand>)['getGitAuthor']()
 
       expect(result).toBe('John Doe <john@example.com>')
     })
 
     it('should reject on name error', async () => {
-      mockExec.mockImplementation((cmd: string, cb: Function) => cb(new Error('git error')))
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) =>
+          cb(new Error('git error'))
+      )
 
-      await expect((command as any).getGitAuthor()).rejects.toThrow('git error')
+      await expect((command as Testable<InitProjectCommand>)['getGitAuthor']()).rejects.toThrow(
+        'git error'
+      )
     })
 
     it('should reject on email error', async () => {
-      mockExec.mockImplementation((cmd: string, cb: Function) => {
-        if (cmd.includes('user.name')) cb(null, 'John\n')
-        else cb(new Error('git error'))
-      })
+      mockExec.mockImplementation(
+        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
+          if (_cmd.includes('user.name')) cb(null, 'John\n')
+          else cb(new Error('git error'))
+        }
+      )
 
-      await expect((command as any).getGitAuthor()).rejects.toThrow('git error')
+      await expect((command as Testable<InitProjectCommand>)['getGitAuthor']()).rejects.toThrow(
+        'git error'
+      )
     })
   })
 
   describe('updatePackageJson', () => {
     it('should update package.json with provided values', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({ name: 'old', description: 'old', version: '0.0.0', author: 'old' })
       )
 
-      await (command as any).updatePackageJson({
+      await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'new',
         description: 'new',
         version: '1.0.0',
         author: 'new'
       })
 
-      expect(writeFileSync).toHaveBeenCalledWith(
+      expect(writeFile).toHaveBeenCalledWith(
         expect.stringContaining('package.json'),
         expect.stringContaining('"name": "new"')
       )
@@ -818,7 +925,7 @@ describe('InitProjectCommand', () => {
 
     it('should preserve existing values when not provided', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         JSON.stringify({
           name: 'existing',
           description: 'existing',
@@ -827,14 +934,14 @@ describe('InitProjectCommand', () => {
         })
       )
 
-      await (command as any).updatePackageJson({
+      await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: '',
         description: '',
         version: '',
         author: ''
       })
 
-      expect(writeFileSync).toHaveBeenCalledWith(
+      expect(writeFile).toHaveBeenCalledWith(
         expect.stringContaining('package.json'),
         expect.stringContaining('"name": "existing"')
       )
@@ -842,9 +949,9 @@ describe('InitProjectCommand', () => {
 
     it('should handle JSON parse error', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('invalid json')
+      ;(readFile as jest.Mock).mockReturnValue('invalid json')
 
-      await (command as any).updatePackageJson({
+      await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'test',
         description: 'test',
         version: '1.0.0',
@@ -859,12 +966,12 @@ describe('InitProjectCommand', () => {
 
     it('should handle write error', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('{}')
-      ;(writeFileSync as jest.Mock).mockImplementation(() => {
+      ;(readFile as jest.Mock).mockReturnValue('{}')
+      ;(writeFile as jest.Mock).mockImplementation(() => {
         throw new Error('Write failed')
       })
 
-      await (command as any).updatePackageJson({
+      await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'test',
         description: 'test',
         version: '1.0.0',
@@ -881,9 +988,9 @@ describe('InitProjectCommand', () => {
   describe('updateDockerCompose', () => {
     it('should update docker-compose.yml with service rename', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
+      ;(readFile as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
 
-      await (command as any).updateDockerCompose({
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
         projectName: 'my-project',
         imageVersion: '1.0.0',
@@ -891,18 +998,18 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       })
 
-      expect(writeFileSync).toHaveBeenCalled()
+      expect(writeFile).toHaveBeenCalled()
     })
 
     it('should add GHCR placeholder comment', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
+      ;(readFile as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
       let writtenContent = ''
-      ;(writeFileSync as jest.Mock).mockImplementation((_path: string, content: string) => {
+      ;(writeFile as jest.Mock).mockImplementation((_path: string, content: string) => {
         writtenContent = content
       })
 
-      await (command as any).updateDockerCompose({
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
         projectName: 'my-project',
         imageVersion: '1.0.0',
@@ -916,15 +1023,15 @@ describe('InitProjectCommand', () => {
 
     it('should not add GHCR comment if one already exists', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue(
+      ;(readFile as jest.Mock).mockReturnValue(
         'services:\n  api:\n    image: api:latest\n    # image: ghcr.io/your-username/your-repo:your-tag'
       )
       let writtenContent = ''
-      ;(writeFileSync as jest.Mock).mockImplementation((_path: string, content: string) => {
+      ;(writeFile as jest.Mock).mockImplementation((_path: string, content: string) => {
         writtenContent = content
       })
 
-      await (command as any).updateDockerCompose({
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
         projectName: 'my-project',
         imageVersion: '1.0.0',
@@ -938,9 +1045,9 @@ describe('InitProjectCommand', () => {
 
     it('should handle YAML parse error', async () => {
       ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFileSync as jest.Mock).mockReturnValue('invalid yaml')
+      ;(readFile as jest.Mock).mockReturnValue('invalid yaml')
 
-      await (command as any).updateDockerCompose({
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
         projectName: 'my-project',
         imageVersion: '1.0.0',
@@ -957,86 +1064,116 @@ describe('InitProjectCommand', () => {
 
   describe('getVersionPlaceholder', () => {
     it('should return semver placeholder', () => {
-      expect((command as any).getVersionPlaceholder('semver')).toBe('0.1.0')
+      expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('semver')).toBe(
+        '0.1.0'
+      )
     })
 
     it('should return calver placeholder', () => {
-      expect((command as any).getVersionPlaceholder('calver')).toBe('2024.03.1')
+      expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('calver')).toBe(
+        '2024.03.1'
+      )
     })
 
     it('should return custom placeholder', () => {
-      expect((command as any).getVersionPlaceholder('custom')).toBe('v1')
+      expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('custom')).toBe(
+        'v1'
+      )
     })
 
     it('should return default placeholder for unknown format', () => {
-      expect((command as any).getVersionPlaceholder('unknown')).toBe('0.1.0')
+      expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('unknown')).toBe(
+        '0.1.0'
+      )
     })
   })
 
   describe('getVersionDefault', () => {
     it('should return semver default', () => {
-      expect((command as any).getVersionDefault('semver')).toBe('0.1.0')
+      expect((command as Testable<InitProjectCommand>)['getVersionDefault']('semver')).toBe('0.1.0')
     })
 
     it('should return calver default with current date', () => {
-      const result = (command as any).getVersionDefault('calver')
+      const result = (command as Testable<InitProjectCommand>)['getVersionDefault']('calver')
       expect(result).toMatch(/^\d{4}\.\d{2}\.0$/)
     })
 
     it('should return custom default', () => {
-      expect((command as any).getVersionDefault('custom')).toBe('1')
+      expect((command as Testable<InitProjectCommand>)['getVersionDefault']('custom')).toBe('1')
     })
 
     it('should return default for unknown format', () => {
-      expect((command as any).getVersionDefault('unknown')).toBe('0.1.0')
+      expect((command as Testable<InitProjectCommand>)['getVersionDefault']('unknown')).toBe(
+        '0.1.0'
+      )
     })
   })
 
   describe('validateVersion', () => {
     it('should allow empty version (for default value)', () => {
-      expect((command as any).validateVersion('', 'semver')).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('', 'semver')
+      ).toBeUndefined()
     })
 
     it('should allow undefined version (for default value)', () => {
-      expect((command as any).validateVersion(undefined, 'semver')).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion'](undefined, 'semver')
+      ).toBeUndefined()
     })
 
     it('should accept valid semver', () => {
-      expect((command as any).validateVersion('1.0.0', 'semver')).toBeUndefined()
-      expect((command as any).validateVersion('0.1.0', 'semver')).toBeUndefined()
-      expect((command as any).validateVersion('10.20.30', 'semver')).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('1.0.0', 'semver')
+      ).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('0.1.0', 'semver')
+      ).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('10.20.30', 'semver')
+      ).toBeUndefined()
     })
 
     it('should reject invalid semver', () => {
-      expect((command as any).validateVersion('abc', 'semver')).toBe(
+      expect((command as Testable<InitProjectCommand>)['validateVersion']('abc', 'semver')).toBe(
         'Must be semver format (x.y.z)'
       )
-      expect((command as any).validateVersion('1.0', 'semver')).toBe(
+      expect((command as Testable<InitProjectCommand>)['validateVersion']('1.0', 'semver')).toBe(
         'Must be semver format (x.y.z)'
       )
-      expect((command as any).validateVersion('v1.0.0', 'semver')).toBe(
+      expect((command as Testable<InitProjectCommand>)['validateVersion']('v1.0.0', 'semver')).toBe(
         'Must be semver format (x.y.z)'
       )
     })
 
     it('should accept valid calver', () => {
-      expect((command as any).validateVersion('2024.03.1', 'calver')).toBeUndefined()
-      expect((command as any).validateVersion('2024.3.0', 'calver')).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('2024.03.1', 'calver')
+      ).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('2024.3.0', 'calver')
+      ).toBeUndefined()
     })
 
     it('should reject invalid calver', () => {
-      expect((command as any).validateVersion('abc', 'calver')).toBe(
+      expect((command as Testable<InitProjectCommand>)['validateVersion']('abc', 'calver')).toBe(
         'Must be calver format (YYYY.M.PATCH)'
       )
-      expect((command as any).validateVersion('1.0.0', 'calver')).toBe(
+      expect((command as Testable<InitProjectCommand>)['validateVersion']('1.0.0', 'calver')).toBe(
         'Must be calver format (YYYY.M.PATCH)'
       )
     })
 
     it('should accept any custom format', () => {
-      expect((command as any).validateVersion('anything', 'custom')).toBeUndefined()
-      expect((command as any).validateVersion('v1', 'custom')).toBeUndefined()
-      expect((command as any).validateVersion('release-1.0', 'custom')).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('anything', 'custom')
+      ).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('v1', 'custom')
+      ).toBeUndefined()
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('release-1.0', 'custom')
+      ).toBeUndefined()
     })
   })
 

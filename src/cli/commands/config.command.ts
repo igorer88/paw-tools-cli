@@ -16,6 +16,7 @@ export class ConfigCommand extends CommandRunner {
     const configPath = this.resolveConfigPath(options?.config)
     const config = this.loadConfig(configPath)
     this.validateConfig(config)
+    // biome-ignore lint/suspicious/noConsole: CLI output
     console.log('Configuration loaded successfully:', configPath)
   }
 
