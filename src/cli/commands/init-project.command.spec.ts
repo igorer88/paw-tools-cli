@@ -181,9 +181,13 @@ jest.mock('yaml', () => {
   }
 })
 
-const mockExec = jest.fn()
-jest.mock('node:child_process', () => ({
-  exec: (...args: unknown[]) => mockExec(...args)
+const mockProcessService = {
+  exec: jest.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+  execSync: jest.fn().mockReturnValue(''),
+  spawn: jest.fn()
+}
+jest.mock('@/shared/process', () => ({
+  ProcessService: jest.fn().mockImplementation(() => mockProcessService)
 }))
 
 describe('InitProjectCommand', () => {
@@ -210,6 +214,8 @@ describe('InitProjectCommand', () => {
     mockFileHandler.readJson.mockReset()
     mockFileHandler.writeFile.mockReset()
     mockFileHandler.writeJson.mockReset()
+    mockProcessService.exec.mockReset()
+    mockProcessService.exec.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
     // Set default behaviors
     mockFileHandler.exists.mockReturnValue(true)
     mockFileHandler.readFile.mockResolvedValue('{}')
@@ -263,9 +269,6 @@ describe('InitProjectCommand', () => {
         version: '0.0.0',
         author: 'old'
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
 
@@ -277,9 +280,6 @@ describe('InitProjectCommand', () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
       mockFileHandler.exists.mockReturnValue(false)
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
 
@@ -306,9 +306,6 @@ describe('InitProjectCommand', () => {
         version: '1.0.0',
         author: 'current-author'
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
@@ -330,9 +327,6 @@ describe('InitProjectCommand', () => {
         version: '1.0.0',
         author: 'current-author'
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
@@ -344,9 +338,6 @@ describe('InitProjectCommand', () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
       ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(false)
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation()
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
@@ -450,9 +441,6 @@ describe('InitProjectCommand', () => {
       mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -473,9 +461,6 @@ describe('InitProjectCommand', () => {
       mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -503,12 +488,12 @@ describe('InitProjectCommand', () => {
         version: 'current-value',
         author: 'Git Name <git@email.com>'
       })
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
-          if (_cmd.includes('user.name')) cb(null, 'Git Name\n')
-          else cb(null, 'git@email.com\n')
+      mockProcessService.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('user.name')) {
+          return Promise.resolve({ stdout: 'Git Name', stderr: '', exitCode: 0 })
         }
-      )
+        return Promise.resolve({ stdout: 'git@email.com', stderr: '', exitCode: 0 })
+      })
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
@@ -524,9 +509,6 @@ describe('InitProjectCommand', () => {
       ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.readJson.mockResolvedValue({})
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
@@ -545,9 +527,6 @@ describe('InitProjectCommand', () => {
       ;(clack.select as jest.Mock).mockResolvedValueOnce('semver').mockResolvedValueOnce('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.exists.mockReturnValue(true) // docker-compose.yml exists
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
@@ -571,9 +550,6 @@ describe('InitProjectCommand', () => {
       mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
@@ -690,12 +666,12 @@ describe('InitProjectCommand', () => {
         version: '2.0.0',
         author: 'old-author'
       })
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
-          if (_cmd.includes('user.name')) cb(null, 'Git User\n')
-          else cb(null, 'git@example.com\n')
+      mockProcessService.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('user.name')) {
+          return Promise.resolve({ stdout: 'Git User', stderr: '', exitCode: 0 })
         }
-      )
+        return Promise.resolve({ stdout: 'git@example.com', stderr: '', exitCode: 0 })
+      })
 
       const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
@@ -709,9 +685,6 @@ describe('InitProjectCommand', () => {
 
     it('should return defaults when no package.json exists', async () => {
       mockFileHandler.exists.mockReturnValue(false)
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
@@ -726,9 +699,6 @@ describe('InitProjectCommand', () => {
     it('should handle malformed package.json', async () => {
       mockFileHandler.exists.mockReturnValue(true)
       mockFileHandler.readJson.mockRejectedValue(new Error('Invalid JSON'))
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
@@ -743,9 +713,6 @@ describe('InitProjectCommand', () => {
     it('should use defaults for missing fields in package.json', async () => {
       mockFileHandler.exists.mockReturnValue(true)
       mockFileHandler.readJson.mockResolvedValue({ name: 'only-name' })
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
 
       const config = await (command as Testable<InitProjectCommand>)['getCurrentConfig']()
 
@@ -757,10 +724,6 @@ describe('InitProjectCommand', () => {
 
   describe('getDefaultConfig', () => {
     it('should return default config with generic description', async () => {
-      mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
-        cb(null, 'name\nemail\n')
-      )
-
       const config = await (command as Testable<InitProjectCommand>)['getDefaultConfig']()
 
       expect(config).toEqual({
@@ -772,10 +735,12 @@ describe('InitProjectCommand', () => {
     })
 
     it('should use fallback author when git fails', async () => {
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) =>
-          cb(new Error('git error'))
-      )
+      mockProcessService.exec.mockResolvedValue({
+        stdout: '',
+        stderr: 'git error',
+        exitCode: 1,
+        error: new Error('git error')
+      })
 
       const config = await (command as Testable<InitProjectCommand>)['getDefaultConfig']()
 
@@ -880,12 +845,12 @@ describe('InitProjectCommand', () => {
 
   describe('getGitAuthor', () => {
     it('should return formatted author string', async () => {
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
-          if (_cmd.includes('user.name')) cb(null, 'John Doe\n')
-          else cb(null, 'john@example.com\n')
+      mockProcessService.exec.mockImplementation((cmd: string) => {
+        if (cmd.includes('user.name')) {
+          return Promise.resolve({ stdout: 'John Doe', stderr: '', exitCode: 0 })
         }
-      )
+        return Promise.resolve({ stdout: 'john@example.com', stderr: '', exitCode: 0 })
+      })
 
       const result = await (command as Testable<InitProjectCommand>)['getGitAuthor']()
 
@@ -893,10 +858,12 @@ describe('InitProjectCommand', () => {
     })
 
     it('should reject on name error', async () => {
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) =>
-          cb(new Error('git error'))
-      )
+      mockProcessService.exec.mockResolvedValue({
+        stdout: '',
+        stderr: 'git error',
+        exitCode: 1,
+        error: new Error('git error')
+      })
 
       await expect((command as Testable<InitProjectCommand>)['getGitAuthor']()).rejects.toThrow(
         'git error'
@@ -904,12 +871,19 @@ describe('InitProjectCommand', () => {
     })
 
     it('should reject on email error', async () => {
-      mockExec.mockImplementation(
-        (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
-          if (_cmd.includes('user.name')) cb(null, 'John\n')
-          else cb(new Error('git error'))
+      let callCount = 0
+      mockProcessService.exec.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return Promise.resolve({ stdout: 'John', stderr: '', exitCode: 0 })
         }
-      )
+        return Promise.resolve({
+          stdout: '',
+          stderr: 'git error',
+          exitCode: 1,
+          error: new Error('git error')
+        })
+      })
 
       await expect((command as Testable<InitProjectCommand>)['getGitAuthor']()).rejects.toThrow(
         'git error'

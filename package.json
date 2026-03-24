@@ -19,7 +19,7 @@
     "setup:agents": "node ./config/scripts/sync-agents.mjs",
     "build": "nest build",
     "cli": "node dist/main",
-    "cli:dev": "ts-node src/main.ts",
+    "cli:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "lint": "biome check --write --no-errors-on-unmatched",
     "format": "biome format --write",
     "test": "jest",
