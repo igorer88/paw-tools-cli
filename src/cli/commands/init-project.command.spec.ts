@@ -1,16 +1,24 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
 
-import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
-
 import * as clack from '@clack/prompts'
 
 import type { Testable } from '@/typings/tests'
 
 import { InitProjectCommand } from './init-project.command'
 
+const mockFileHandler = {
+  exists: jest.fn().mockReturnValue(true),
+  readFile: jest.fn().mockResolvedValue('{}'),
+  readJson: jest.fn().mockResolvedValue({}),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  writeJson: jest.fn().mockResolvedValue(undefined)
+}
+
 jest.mock('node:fs')
 jest.mock('node:fs/promises')
+jest.mock('@/shared/file-handler', () => ({
+  FileHandlerService: jest.fn().mockImplementation(() => mockFileHandler)
+}))
 jest.mock('@clack/prompts', () => ({
   text: jest.fn(),
   confirm: jest.fn(),
@@ -185,7 +193,27 @@ describe('InitProjectCommand', () => {
   let consoleErrorSpy: jest.SpyInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    // Reset mocks completely and re-apply defaults
+    ;(clack.text as jest.Mock).mockReset()
+    ;(clack.confirm as jest.Mock).mockReset()
+    ;(clack.select as jest.Mock).mockReset()
+    ;(clack.spinner as jest.Mock).mockReset()
+    ;(clack.cancel as jest.Mock).mockReset()
+    ;(clack.isCancel as unknown as jest.Mock).mockReset()
+    ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(false)
+    ;(clack.spinner as jest.Mock).mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn()
+    }))
+    mockFileHandler.exists.mockReset()
+    mockFileHandler.readFile.mockReset()
+    mockFileHandler.readJson.mockReset()
+    mockFileHandler.writeFile.mockReset()
+    mockFileHandler.writeJson.mockReset()
+    // Set default behaviors
+    mockFileHandler.exists.mockReturnValue(true)
+    mockFileHandler.readFile.mockResolvedValue('{}')
+    mockFileHandler.readJson.mockResolvedValue({})
     command = new InitProjectCommand()
     consoleSpy = jest.spyOn(console, 'log').mockImplementation()
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation()
@@ -228,10 +256,13 @@ describe('InitProjectCommand', () => {
     it('should use spinner and default values', async () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({ name: 'old', description: 'old', version: '0.0.0', author: 'old' })
-      )
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'old',
+        description: 'old',
+        version: '0.0.0',
+        author: 'old'
+      })
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -245,7 +276,7 @@ describe('InitProjectCommand', () => {
     it('should skip package.json update if file does not exist', async () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
       ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
-      ;(existsSync as jest.Mock).mockReturnValue(false)
+      mockFileHandler.exists.mockReturnValue(false)
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -257,20 +288,24 @@ describe('InitProjectCommand', () => {
   })
 
   describe('initializeInteractive', () => {
+    beforeEach(() => {
+      mockFileHandler.exists.mockImplementation((path: string) => {
+        return path.includes('package.json') // Default: package.json exists, docker-compose doesn't
+      })
+      mockFileHandler.readJson.mockResolvedValue({})
+      mockFileHandler.readFile.mockResolvedValue('{}')
+    })
+
     it('should prompt for all fields using current config', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'current-name',
+        description: 'current-desc',
+        version: '1.0.0',
+        author: 'current-author'
       })
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({
-          name: 'current-name',
-          description: 'current-desc',
-          version: '1.0.0',
-          author: 'current-author'
-        })
-      )
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -287,18 +322,14 @@ describe('InitProjectCommand', () => {
         .mockResolvedValueOnce('current-desc')
         .mockResolvedValueOnce('1.0.0')
         .mockResolvedValueOnce('current-author')
+      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'current-name',
+        description: 'current-desc',
+        version: '1.0.0',
+        author: 'current-author'
       })
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({
-          name: 'current-name',
-          description: 'current-desc',
-          version: '1.0.0',
-          author: 'current-author'
-        })
-      )
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -311,11 +342,8 @@ describe('InitProjectCommand', () => {
 
     it('should cancel when user rejects confirmation', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue('test-value')
+      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(false)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -330,10 +358,6 @@ describe('InitProjectCommand', () => {
     it('should cancel on user cancel for name', async () => {
       ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -353,10 +377,6 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -376,10 +396,17 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('test-name')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('1.0.0')
+        .mockResolvedValueOnce(Symbol('cancel'))
+      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
+        (val: unknown) => typeof val === 'symbol'
+      )
+      mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -400,10 +427,9 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+      mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
         throw new Error('process.exit')
       }) as (code?: number) => never)
@@ -421,10 +447,9 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+      mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -445,10 +470,9 @@ describe('InitProjectCommand', () => {
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
         (val: unknown) => typeof val === 'symbol'
       )
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+      mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -464,24 +488,21 @@ describe('InitProjectCommand', () => {
     })
 
     it('should show no changes message when values are same', async () => {
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('current-value')
-        .mockResolvedValueOnce('current-value')
-        .mockResolvedValueOnce('current-value')
-        .mockResolvedValueOnce('Git Name <git@email.com>')
-      ;(clack.select as jest.Mock).mockResolvedValue('semver')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
+      mockFileHandler.exists.mockImplementation((path: string) => {
+        return !path.includes('docker-compose') // Skip docker-compose checks
       })
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({
-          name: 'current-value',
-          description: 'current-value',
-          version: 'current-value',
-          author: 'Git Name <git@email.com>'
-        })
-      )
+      ;(clack.text as jest.Mock)
+        .mockResolvedValueOnce('api') // name
+        .mockResolvedValueOnce('current-value') // description
+        .mockResolvedValueOnce('current-value') // version
+        .mockResolvedValueOnce('Git Name <git@email.com>') // author
+      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'api',
+        description: 'current-value',
+        version: 'current-value',
+        author: 'Git Name <git@email.com>'
+      })
       mockExec.mockImplementation(
         (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
           if (_cmd.includes('user.name')) cb(null, 'Git Name\n')
@@ -500,12 +521,9 @@ describe('InitProjectCommand', () => {
         .mockResolvedValueOnce('test-desc')
         .mockResolvedValueOnce('2024.03.1')
         .mockResolvedValueOnce('test-author')
-      ;(clack.select as jest.Mock).mockResolvedValue('calver')
+      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockFileHandler.readJson.mockResolvedValue({})
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -526,8 +544,7 @@ describe('InitProjectCommand', () => {
         .mockResolvedValueOnce('latest')
       ;(clack.select as jest.Mock).mockResolvedValueOnce('semver').mockResolvedValueOnce('pnpm')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('{}')
+      mockFileHandler.exists.mockReturnValue(true) // docker-compose.yml exists
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -551,10 +568,9 @@ describe('InitProjectCommand', () => {
         .mockResolvedValueOnce('test-author')
       ;(clack.select as jest.Mock).mockResolvedValue('semver')
       ;(clack.confirm as jest.Mock).mockResolvedValue(true)
-      ;(existsSync as jest.Mock).mockImplementation((path: string) => {
+      mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
-      ;(readFile as jest.Mock).mockReturnValue('{}')
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -585,7 +601,7 @@ describe('InitProjectCommand', () => {
 
   describe('initializeDockerConfig', () => {
     it('should return null when no docker-compose.yml exists', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(false)
+      mockFileHandler.exists.mockReturnValue(false)
 
       const result = await (command as Testable<InitProjectCommand>)['initializeDockerConfig'](
         'my-project'
@@ -595,7 +611,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should prompt for Docker config when docker-compose.yml exists', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      mockFileHandler.exists.mockReturnValue(true)
       ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
       ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
 
@@ -613,7 +629,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should cancel on service name cancel', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      mockFileHandler.exists.mockReturnValue(true)
       ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
       const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
@@ -628,7 +644,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should cancel on image version cancel', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      mockFileHandler.exists.mockReturnValue(true)
       ;(clack.text as jest.Mock)
         .mockResolvedValueOnce('my-service')
         .mockResolvedValueOnce(Symbol('cancel'))
@@ -647,7 +663,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should cancel on package manager cancel', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
+      mockFileHandler.exists.mockReturnValue(true)
       ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
       ;(clack.select as jest.Mock).mockResolvedValue(Symbol('cancel'))
       ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
@@ -667,15 +683,13 @@ describe('InitProjectCommand', () => {
 
   describe('getCurrentConfig', () => {
     it('should return current values from package.json with git author', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({
-          name: 'existing-name',
-          description: 'existing-desc',
-          version: '2.0.0',
-          author: 'old-author'
-        })
-      )
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'existing-name',
+        description: 'existing-desc',
+        version: '2.0.0',
+        author: 'old-author'
+      })
       mockExec.mockImplementation(
         (_cmd: string, cb: (err: Error | null, stdout?: string) => void) => {
           if (_cmd.includes('user.name')) cb(null, 'Git User\n')
@@ -694,7 +708,7 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return defaults when no package.json exists', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(false)
+      mockFileHandler.exists.mockReturnValue(false)
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -710,8 +724,8 @@ describe('InitProjectCommand', () => {
     })
 
     it('should handle malformed package.json', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('invalid json')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockRejectedValue(new Error('Invalid JSON'))
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -727,8 +741,8 @@ describe('InitProjectCommand', () => {
     })
 
     it('should use defaults for missing fields in package.json', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(JSON.stringify({ name: 'only-name' }))
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({ name: 'only-name' })
       mockExec.mockImplementation((_cmd: string, cb: (...args: unknown[]) => unknown) =>
         cb(null, 'name\nemail\n')
       )
@@ -905,10 +919,13 @@ describe('InitProjectCommand', () => {
 
   describe('updatePackageJson', () => {
     it('should update package.json with provided values', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({ name: 'old', description: 'old', version: '0.0.0', author: 'old' })
-      )
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'old',
+        description: 'old',
+        version: '0.0.0',
+        author: 'old'
+      })
 
       await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'new',
@@ -917,22 +934,20 @@ describe('InitProjectCommand', () => {
         author: 'new'
       })
 
-      expect(writeFile).toHaveBeenCalledWith(
+      expect(mockFileHandler.writeJson).toHaveBeenCalledWith(
         expect.stringContaining('package.json'),
-        expect.stringContaining('"name": "new"')
+        expect.objectContaining({ name: 'new' })
       )
     })
 
     it('should preserve existing values when not provided', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(
-        JSON.stringify({
-          name: 'existing',
-          description: 'existing',
-          version: '0.0.0',
-          author: 'existing'
-        })
-      )
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({
+        name: 'existing',
+        description: 'existing',
+        version: '0.0.0',
+        author: 'existing'
+      })
 
       await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: '',
@@ -941,15 +956,15 @@ describe('InitProjectCommand', () => {
         author: ''
       })
 
-      expect(writeFile).toHaveBeenCalledWith(
+      expect(mockFileHandler.writeJson).toHaveBeenCalledWith(
         expect.stringContaining('package.json'),
-        expect.stringContaining('"name": "existing"')
+        expect.objectContaining({ name: 'existing' })
       )
     })
 
     it('should handle JSON parse error', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('invalid json')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockRejectedValue(new Error('Invalid JSON'))
 
       await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'test',
@@ -965,11 +980,9 @@ describe('InitProjectCommand', () => {
     })
 
     it('should handle write error', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('{}')
-      ;(writeFile as jest.Mock).mockImplementation(() => {
-        throw new Error('Write failed')
-      })
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockResolvedValue({})
+      mockFileHandler.writeJson.mockRejectedValue(new Error('Write failed'))
 
       await (command as Testable<InitProjectCommand>)['updatePackageJson']({
         name: 'test',
@@ -987,8 +1000,8 @@ describe('InitProjectCommand', () => {
 
   describe('updateDockerCompose', () => {
     it('should update docker-compose.yml with service rename', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('services:\n  api:\n    image: api:latest')
 
       await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
@@ -998,16 +1011,12 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       })
 
-      expect(writeFile).toHaveBeenCalled()
+      expect(mockFileHandler.writeFile).toHaveBeenCalled()
     })
 
     it('should add GHCR placeholder comment', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('services:\n  api:\n    image: api:latest')
-      let writtenContent = ''
-      ;(writeFile as jest.Mock).mockImplementation((_path: string, content: string) => {
-        writtenContent = content
-      })
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('services:\n  api:\n    image: api:latest')
 
       await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
@@ -1017,19 +1026,21 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       })
 
-      expect(writtenContent).toContain('# For production with GHCR, uncomment and update:')
-      expect(writtenContent).toContain('# image: ghcr.io/your-username/your-repo:1.0.0')
+      expect(mockFileHandler.writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('# For production with GHCR, uncomment and update:')
+      )
+      expect(mockFileHandler.writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('# image: ghcr.io/your-username/your-repo:1.0.0')
+      )
     })
 
     it('should not add GHCR comment if one already exists', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue(
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue(
         'services:\n  api:\n    image: api:latest\n    # image: ghcr.io/your-username/your-repo:your-tag'
       )
-      let writtenContent = ''
-      ;(writeFile as jest.Mock).mockImplementation((_path: string, content: string) => {
-        writtenContent = content
-      })
 
       await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
@@ -1039,13 +1050,19 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       })
 
-      expect(writtenContent).toContain('# image: ghcr.io/your-username/your-repo:your-tag')
-      expect(writtenContent).not.toContain('# For production with GHCR, uncomment and update:')
+      expect(mockFileHandler.writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('# image: ghcr.io/your-username/your-repo:your-tag')
+      )
+      expect(mockFileHandler.writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.stringContaining('# For production with GHCR, uncomment and update:')
+      )
     })
 
     it('should handle YAML parse error', async () => {
-      ;(existsSync as jest.Mock).mockReturnValue(true)
-      ;(readFile as jest.Mock).mockReturnValue('invalid yaml')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('invalid yaml')
 
       await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
         serviceName: 'my-service',
