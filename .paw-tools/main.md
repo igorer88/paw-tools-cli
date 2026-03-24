@@ -337,13 +337,69 @@ src/shared/file-handler/
 ├── interfaces/
 │   ├── file-reader.interface.ts    # Read operations
 │   ├── file-writer.interface.ts    # Write operations
-│   ├── file-system.interface.ts     # File system operations
+│   ├── file-system.interface.ts    # File system operations
 │   ├── yaml-handler.interface.ts   # YAML operations
 │   └── index.ts
 ├── file-handler.service.ts         # Implementation
 ├── file-handler.module.ts          # NestJS module
 └── index.ts                        # Re-exports
 ```
+
+## ProcessModule
+
+All child process operations MUST use `ProcessService`. Never use `node:child_process` directly in commands.
+
+### Location
+
+```
+src/shared/process/
+├── interfaces/
+│   ├── executor.interface.ts
+│   └── index.ts
+├── process.service.ts
+├── process.module.ts
+└── index.ts
+```
+
+### Usage
+
+```typescript
+import { ProcessService } from '@/shared/process'
+
+export class MyCommand extends CommandRunner {
+  private readonly processService: ProcessService
+
+  constructor() {
+    super()
+    this.processService = new ProcessService()
+  }
+
+  async execute() {
+    const result = await this.processService.exec('git status')
+    if (result.exitCode === 0) {
+      console.log(result.stdout)
+    }
+  }
+}
+```
+
+### Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `exec(command)` | Execute command asynchronously, returns `{ stdout, stderr, exitCode, error }` |
+| `execSync(command)` | Execute command synchronously, returns stdout string |
+| `spawn(command, args)` | Spawn a child process, returns ChildProcess |
+
+### Example: Getting Git Author
+
+```typescript
+const nameResult = await this.processService.exec('git config --get user.name')
+const emailResult = await this.processService.exec('git config --get user.email')
+const author = `${nameResult.stdout} <${emailResult.stdout}>`
+```
+
+**Do NOT use `node:child_process` directly in commands.**
 
 ## Additional Notes
 

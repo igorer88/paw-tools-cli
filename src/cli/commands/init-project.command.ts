@@ -1,6 +1,5 @@
 // biome-ignore-all lint/suspicious/noConsole: CLI command output
 
-import { exec } from 'node:child_process'
 import { join } from 'node:path'
 
 import { cancel, confirm, isCancel, select, spinner, text } from '@clack/prompts'
@@ -8,6 +7,7 @@ import { Command, CommandRunner, Option } from 'nest-commander'
 import { isMap, isPair, isScalar, type Pair, parseDocument, type Scalar, type YAMLMap } from 'yaml'
 
 import { FileHandlerService } from '@/shared/file-handler'
+import { ProcessService } from '@/shared/process'
 
 interface InitProjectOptions {
   defaults?: boolean
@@ -35,10 +35,12 @@ interface DockerConfig {
 export class InitProjectCommand extends CommandRunner {
   private readonly mainServiceName = 'api'
   private readonly fileHandler: FileHandlerService
+  private readonly processService: ProcessService
 
   constructor() {
     super()
     this.fileHandler = new FileHandlerService()
+    this.processService = new ProcessService()
   }
 
   private getVersionPlaceholder(format: string): string {
@@ -85,24 +87,18 @@ export class InitProjectCommand extends CommandRunner {
     return undefined
   }
 
-  private getGitAuthor(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      exec('git config --get user.name', (error, stdout) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        const name = stdout.trim()
-        exec('git config --get user.email', (error, stdout) => {
-          if (error) {
-            reject(error)
-            return
-          }
-          const email = stdout.trim()
-          resolve(`${name} <${email}>`)
-        })
-      })
-    })
+  private async getGitAuthor(): Promise<string> {
+    const nameResult = await this.processService.exec('git config --get user.name')
+    if (nameResult.error) {
+      throw nameResult.error
+    }
+
+    const emailResult = await this.processService.exec('git config --get user.email')
+    if (emailResult.error) {
+      throw emailResult.error
+    }
+
+    return `${nameResult.stdout} <${emailResult.stdout}>`
   }
 
   private async getDefaultConfig(): Promise<ProjectConfig> {
