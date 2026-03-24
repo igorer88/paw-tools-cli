@@ -530,6 +530,9 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
+      expect(consoleSpy).toHaveBeenCalledWith('\nChanges applied:')
+      expect(consoleSpy).toHaveBeenCalledWith('  ✓ package.json updated')
+      expect(consoleSpy).toHaveBeenCalledWith('  ✓ docker-compose.yml updated')
       expect(consoleSpy).toHaveBeenCalledWith('\n✔ Project initialized successfully.')
       expect(mockFileHandler.writeJson).toHaveBeenCalled()
       expect(mockFileHandler.writeFile).toHaveBeenCalled()

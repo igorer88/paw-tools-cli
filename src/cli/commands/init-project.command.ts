@@ -425,6 +425,11 @@ export class InitProjectCommand extends CommandRunner {
       if (dockerConfig) {
         await this.updateDockerCompose(dockerConfig)
       }
+      console.log('\nChanges applied:')
+      console.log('  ✓ package.json updated')
+      if (dockerConfig) {
+        console.log('  ✓ docker-compose.yml updated')
+      }
       console.log('\n✔ Project initialized successfully.')
     } catch (error) {
       console.error('Failed to update project:', error)
