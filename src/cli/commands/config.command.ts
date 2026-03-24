@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Command, CommandRunner, Option } from 'nest-commander'
+
+import { FileHandlerService } from '@/shared/file-handler'
 
 interface ConfigCommandOptions {
   config?: string
@@ -12,12 +13,11 @@ interface ConfigCommandOptions {
   description: 'Load and validate CLI configuration'
 })
 export class ConfigCommand extends CommandRunner {
-  async run(_passedParam: string[], options?: ConfigCommandOptions): Promise<void> {
-    const configPath = this.resolveConfigPath(options?.config)
-    const config = this.loadConfig(configPath)
-    this.validateConfig(config)
-    // biome-ignore lint/suspicious/noConsole: CLI output
-    console.log('Configuration loaded successfully:', configPath)
+  private readonly fileHandler: FileHandlerService
+
+  constructor() {
+    super()
+    this.fileHandler = new FileHandlerService()
   }
 
   private resolveConfigPath(customPath?: string): string {
@@ -26,18 +26,12 @@ export class ConfigCommand extends CommandRunner {
     return join(process.cwd(), 'config', 'config.json')
   }
 
-  private loadConfig(path: string): Record<string, unknown> {
-    if (!existsSync(path)) {
+  private async loadConfig(path: string): Promise<Record<string, unknown>> {
+    if (!this.fileHandler.exists(path)) {
       throw new Error(`Config file not found: ${path}`)
     }
 
-    const content = readFileSync(path, 'utf-8')
-
-    try {
-      return JSON.parse(content)
-    } catch {
-      throw new Error(`Invalid JSON in config file: ${path}`)
-    }
+    return this.fileHandler.readJson<Record<string, unknown>>(path)
   }
 
   private validateConfig(config: Record<string, unknown>): void {
@@ -52,5 +46,13 @@ export class ConfigCommand extends CommandRunner {
   })
   parseConfig(val: string): string {
     return val
+  }
+
+  async run(_passedParam: string[], options?: ConfigCommandOptions): Promise<void> {
+    const configPath = this.resolveConfigPath(options?.config)
+    const config = await this.loadConfig(configPath)
+    this.validateConfig(config)
+    // biome-ignore lint/suspicious/noConsole: CLI output
+    console.log('Configuration loaded successfully:', configPath)
   }
 }
