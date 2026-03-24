@@ -1,10 +1,13 @@
+// biome-ignore-all lint/suspicious/noConsole: CLI command output
+
 import { exec } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { cancel, confirm, isCancel, select, spinner, text } from '@clack/prompts'
 import { Command, CommandRunner, Option } from 'nest-commander'
-import { parseDocument, stringify as stringifyYaml } from 'yaml'
+import { isMap, isPair, isScalar, type Pair, parseDocument, type Scalar, type YAMLMap } from 'yaml'
 
 interface InitProjectOptions {
   defaults?: boolean
@@ -232,7 +235,7 @@ export class InitProjectCommand extends CommandRunner {
     }
 
     try {
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
+      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'))
       const gitAuthor = await this.getGitAuthor().catch(() => 'Unknown <unknown@example.com>')
 
       return {
@@ -317,12 +320,12 @@ export class InitProjectCommand extends CommandRunner {
     }
 
     try {
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
+      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'))
       packageJson.name = config.name || packageJson.name
       packageJson.description = config.description || packageJson.description
       packageJson.version = config.version || packageJson.version
       packageJson.author = config.author || packageJson.author
-      writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`)
+      await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`)
     } catch (error) {
       console.error('Failed to update package.json:', error)
     }
@@ -332,37 +335,43 @@ export class InitProjectCommand extends CommandRunner {
     const dockerComposePath = join(process.cwd(), 'docker-compose.yml')
 
     try {
-      const fileContents = readFileSync(dockerComposePath, 'utf8')
+      const fileContents = await readFile(dockerComposePath, 'utf8')
       const doc = parseDocument(fileContents)
 
-      const servicesPair = (doc.contents as any).items.find(
-        (pair: any) => pair.key.value === 'services'
-      )
+      if (!isMap(doc.contents)) {
+        console.warn('Invalid docker-compose.yml structure')
+        return
+      }
 
-      if (!servicesPair) {
+      const hasScalarKey = (pair: unknown, key: string): pair is Pair<Scalar<string>, YAMLMap> =>
+        isPair(pair) && isScalar(pair.key) && pair.key.value === key
+
+      const servicesPair = doc.contents.items.find((pair) => hasScalarKey(pair, 'services'))
+      if (!servicesPair || !isMap(servicesPair.value)) {
         console.warn('services not found in docker-compose.yml')
         return
       }
 
-      const mainServicePair = servicesPair.value.items.find(
-        (pair: any) => pair.key.value === this.mainServiceName
+      const mainServicePair = servicesPair.value.items.find((pair) =>
+        hasScalarKey(pair, this.mainServiceName)
       )
-
-      if (!mainServicePair) {
+      if (!mainServicePair || !isMap(mainServicePair.value)) {
         console.warn(`${this.mainServiceName} service not found in docker-compose.yml`)
         return
       }
 
-      mainServicePair.key.value = config.serviceName
+      if (isScalar(mainServicePair.key)) {
+        mainServicePair.key.value = config.serviceName
+      }
 
       const dockerImage = `${config.projectName}:${config.imageVersion}`
       mainServicePair.value.set('container_name', config.serviceName)
       mainServicePair.value.set('image', dockerImage)
 
-      const buildPair = mainServicePair.value.items.find((pair: any) => pair.key.value === 'build')
-      if (buildPair?.value) {
-        const argsPair = buildPair.value.items.find((pair: any) => pair.key.value === 'args')
-        if (argsPair?.value) {
+      const buildPair = mainServicePair.value.items.find((pair) => hasScalarKey(pair, 'build'))
+      if (buildPair?.value && isMap(buildPair.value)) {
+        const argsPair = buildPair.value.items.find((pair) => hasScalarKey(pair, 'args'))
+        if (argsPair?.value && isMap(argsPair.value)) {
           const registryArg = `${config.packageManager.toUpperCase()}_REGISTRY`
           argsPair.value.delete('NPM_REGISTRY')
           argsPair.value.delete('YARN_REGISTRY')
@@ -381,7 +390,7 @@ export class InitProjectCommand extends CommandRunner {
         )
       }
 
-      writeFileSync(dockerComposePath, yamlContent)
+      await writeFile(dockerComposePath, yamlContent)
     } catch (error) {
       console.error('Failed to update docker-compose.yml:', error)
     }

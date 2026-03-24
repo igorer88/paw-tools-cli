@@ -9,6 +9,7 @@ import { Command, CommandRunner } from 'nest-commander'
 export class GenerateSecretCommand extends CommandRunner {
   async run(): Promise<void> {
     const secretKey = randomBytes(32).toString('hex')
+    // biome-ignore lint/suspicious/noConsole: CLI output
     console.log(secretKey)
   }
 }
