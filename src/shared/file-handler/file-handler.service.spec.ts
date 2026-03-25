@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { FileHandlerService } from './file-handler.service'
@@ -7,6 +7,8 @@ describe('FileHandlerService', () => {
   const testDir = join(process.cwd(), 'test-temp')
   const testFile = join(testDir, 'test.json')
   const testYamlFile = join(testDir, 'test.yaml')
+  const testSymlinkFile = join(testDir, 'test-symlink.json')
+  const testSymlinkDir = join(testDir, 'test-symlink-dir')
   const service = new FileHandlerService()
 
   beforeAll(() => {
@@ -23,6 +25,20 @@ describe('FileHandlerService', () => {
     }
     if (service.exists(testYamlFile)) {
       rmSync(testYamlFile)
+    }
+    if (service.exists(testSymlinkFile)) {
+      try {
+        unlinkSync(testSymlinkFile)
+      } catch {
+        /* ignore */
+      }
+    }
+    if (service.exists(testSymlinkDir)) {
+      try {
+        unlinkSync(testSymlinkDir)
+      } catch {
+        /* ignore */
+      }
     }
   })
 
@@ -98,6 +114,27 @@ describe('FileHandlerService', () => {
 
     it('should not throw if directory exists', async () => {
       await expect(service.ensureDir(testDir)).resolves.not.toThrow()
+    })
+  })
+
+  describe('createSymlink', () => {
+    it('should create file symlink', async () => {
+      writeFileSync(testFile, '{}')
+
+      await service.createSymlink(testFile, testSymlinkFile, 'file')
+
+      expect(service.exists(testSymlinkFile)).toBe(true)
+      expect(lstatSync(testSymlinkFile).isSymbolicLink()).toBe(true)
+    })
+
+    it('should create directory symlink', async () => {
+      const nestedDir = join(testDir, 'nested-source')
+      mkdirSync(nestedDir, { recursive: true })
+
+      await service.createSymlink(nestedDir, testSymlinkDir, 'dir')
+
+      expect(service.exists(testSymlinkDir)).toBe(true)
+      expect(lstatSync(testSymlinkDir).isSymbolicLink()).toBe(true)
     })
   })
 })

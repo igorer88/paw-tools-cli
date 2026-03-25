@@ -134,5 +134,47 @@ describe('ConfigCommand', () => {
         expect.stringContaining('Configuration loaded successfully')
       )
     })
+
+    it('should use custom path from option', async () => {
+      await command.run([], { config: '/custom/path.json' })
+
+      expect(mockFileHandler.exists).toHaveBeenCalledWith('/custom/path.json')
+      expect(mockFileHandler.readJson).toHaveBeenCalledWith('/custom/path.json')
+    })
+
+    it('should use PAW_CONFIG env var when no option provided', async () => {
+      process.env.PAW_CONFIG = '/env/config.json'
+      await command.run([])
+
+      expect(mockFileHandler.exists).toHaveBeenCalledWith('/env/config.json')
+      expect(mockFileHandler.readJson).toHaveBeenCalledWith('/env/config.json')
+    })
+
+    it('should prioritize option over PAW_CONFIG env var', async () => {
+      process.env.PAW_CONFIG = '/env/config.json'
+      await command.run([], { config: '/custom/path.json' })
+
+      expect(mockFileHandler.exists).toHaveBeenCalledWith('/custom/path.json')
+      expect(mockFileHandler.exists).not.toHaveBeenCalledWith('/env/config.json')
+    })
+
+    it('should throw when config file does not exist', async () => {
+      mockFileHandler.exists.mockReturnValue(false)
+
+      await expect(command.run([])).rejects.toThrow('Config file not found')
+    })
+
+    it('should throw when config read fails', async () => {
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readJson.mockRejectedValue(new Error('Read error'))
+
+      await expect(command.run([])).rejects.toThrow('Read error')
+    })
+
+    it('should throw when config is not an object', async () => {
+      mockFileHandler.readJson.mockResolvedValue('not an object')
+
+      await expect(command.run([])).rejects.toThrow('Config must be a valid JSON object')
+    })
   })
 })

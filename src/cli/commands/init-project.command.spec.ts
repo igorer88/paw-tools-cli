@@ -439,6 +439,41 @@ describe('InitProjectCommand', () => {
       expect(validateFn('my project')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
       expect(validateFn('MyProject')).toBe('Name must be kebab-case (lowercase, numbers, hyphens)')
     })
+
+    it('should cancel when user rejects confirmation', async () => {
+      ;(mockPromptService.text as jest.Mock)
+        .mockResolvedValueOnce('test-name')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('1.0.0')
+        .mockResolvedValueOnce('test-author')
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(false)
+
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation()
+
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
+
+      expect(mockConsoleService.info).toHaveBeenCalledWith('Operation cancelled.')
+      expect(exitSpy).toHaveBeenCalledWith(0)
+    })
+
+    it('should handle error when updatePackageJson fails', async () => {
+      ;(mockPromptService.text as jest.Mock)
+        .mockResolvedValueOnce('test-name')
+        .mockResolvedValueOnce('test-desc')
+        .mockResolvedValueOnce('1.0.0')
+        .mockResolvedValueOnce('test-author')
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
+      mockFileHandler.writeJson.mockRejectedValue(new Error('Write failed'))
+
+      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
+
+      expect(mockConsoleService.error).toHaveBeenCalledWith(
+        'Failed to update package.json:',
+        expect.any(Error)
+      )
+    })
   })
 
   describe('initializeDockerConfig', () => {
@@ -867,6 +902,88 @@ describe('InitProjectCommand', () => {
         expect.any(Error)
       )
     })
+
+    it('should warn when services not found', async () => {
+      const yaml = require('yaml')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('other: value')
+
+      const originalParse = yaml.parseDocument
+      yaml.parseDocument = jest.fn(() => ({
+        contents: { items: [] },
+        toString: () => 'other: value'
+      }))
+
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(mockConsoleService.warn).toHaveBeenCalledWith(
+        'services not found in docker-compose.yml'
+      )
+      yaml.parseDocument = originalParse
+    })
+
+    it('should warn when main service not found', async () => {
+      const yaml = require('yaml')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('services:\n  other: {}')
+
+      const createServicesMap = () => ({
+        items: [
+          {
+            key: { value: 'other' },
+            value: { items: [] }
+          }
+        ]
+      })
+
+      const originalParse = yaml.parseDocument
+      yaml.parseDocument = jest.fn(() => ({
+        contents: { items: [{ key: { value: 'services' }, value: createServicesMap() }] },
+        toString: () => 'services:\n  other: {}'
+      }))
+
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(mockConsoleService.warn).toHaveBeenCalledWith(
+        'api service not found in docker-compose.yml'
+      )
+      yaml.parseDocument = originalParse
+    })
+
+    it('should warn when docker-compose structure is invalid', async () => {
+      const yaml = require('yaml')
+      mockFileHandler.exists.mockReturnValue(true)
+      mockFileHandler.readFile.mockResolvedValue('not: yaml')
+
+      const originalParse = yaml.parseDocument
+      yaml.parseDocument = jest.fn(() => ({
+        contents: { notItems: [] },
+        toString: () => 'not: yaml'
+      }))
+
+      await (command as Testable<InitProjectCommand>)['updateDockerCompose']({
+        serviceName: 'my-service',
+        projectName: 'my-project',
+        imageVersion: '1.0.0',
+        packageManager: 'pnpm',
+        registryUrl: 'https://registry.npmjs.org/'
+      })
+
+      expect(mockConsoleService.warn).toHaveBeenCalledWith('Invalid docker-compose.yml structure')
+      yaml.parseDocument = originalParse
+    })
   })
 
   describe('getVersionPlaceholder', () => {
@@ -984,6 +1101,12 @@ describe('InitProjectCommand', () => {
       ).toBeUndefined()
       expect(
         (command as Testable<InitProjectCommand>)['validateVersion']('release-1.0', 'custom')
+      ).toBeUndefined()
+    })
+
+    it('should return undefined for unknown format', () => {
+      expect(
+        (command as Testable<InitProjectCommand>)['validateVersion']('1.0.0', 'unknown')
       ).toBeUndefined()
     })
   })
