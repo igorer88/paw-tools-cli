@@ -1,3 +1,3 @@
 export { FileHandlerModule } from './file-handler.module'
-export { FileHandlerService } from './file-handler.service'
+export { FileHandlerService, getBaseDirectory, setBaseDirectory } from './file-handler.service'
 export type { FileReader, FileSystem, FileWriter, YamlHandler } from './interfaces'

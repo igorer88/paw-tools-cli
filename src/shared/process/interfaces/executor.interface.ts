@@ -1,7 +1,9 @@
+import type { ExitCode } from '@/typings/exit-codes'
+
 export interface ExecResult {
   stdout: string
   stderr: string
-  exitCode: number
+  exitCode: ExitCode
   error?: Error
 }
 
