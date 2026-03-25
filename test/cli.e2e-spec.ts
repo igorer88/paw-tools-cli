@@ -153,8 +153,7 @@ describe('CLI E2E', () => {
     it('should output hex secret on success', async () => {
       const result = await runCli(['generate-secret'])
 
-      const hexPattern = /✔\s+([a-f0-9]+)/
-      expect(result.stdout).toMatch(hexPattern)
+      expect(result.stdout).toMatch(/[✔✓]\s+[a-f0-9]{64}/)
     })
   })
 })
