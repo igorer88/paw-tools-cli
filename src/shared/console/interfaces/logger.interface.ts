@@ -1,0 +1,11 @@
+export interface Logger {
+  info(message: string, ...args: unknown[]): void
+  success(message: string, ...args: unknown[]): void
+  warn(message: string, ...args: unknown[]): void
+  error(message: string, ...args: unknown[]): void
+  debug(message: string, ...args: unknown[]): void
+  start(message: string): void
+  done(message: string): void
+  fail(message: string): void
+  log(message: string, ...args: unknown[]): void
+}
