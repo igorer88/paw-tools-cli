@@ -1,3 +1,4 @@
+import { CommandValidator } from './command.validator'
 import { ProcessService } from './process.service'
 
 describe('ProcessService', () => {
@@ -18,6 +19,14 @@ describe('ProcessService', () => {
       expect(result.exitCode).toBe(1)
       expect(result.error).toBeDefined()
     })
+
+    it('should return error on validation failure', async () => {
+      const result = await service.exec('echo test; rm -rf /')
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('dangerous shell characters')
+      expect(result.error).toBeDefined()
+    })
   })
 
   describe('execSync', () => {
@@ -30,6 +39,10 @@ describe('ProcessService', () => {
     it('should throw on failed command', () => {
       expect(() => service.execSync('exit 1')).toThrow()
     })
+
+    it('should throw on validation failure', () => {
+      expect(() => service.execSync('echo $HOME')).toThrow()
+    })
   })
 
   describe('spawn', () => {
@@ -38,6 +51,18 @@ describe('ProcessService', () => {
 
       expect(child).toBeDefined()
       expect(child.kill).toBeDefined()
+    })
+
+    it('should throw on dangerous arguments', () => {
+      expect(() => service.spawn('echo', ['test; rm -rf /'])).toThrow()
+    })
+  })
+
+  describe('CommandValidator integration', () => {
+    it('should validate commands using CommandValidator', () => {
+      const validator = new CommandValidator()
+      expect(() => validator.validate('echo test')).not.toThrow()
+      expect(() => validator.validate('echo $PATH')).toThrow()
     })
   })
 })
