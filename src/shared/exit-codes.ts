@@ -1,6 +1,6 @@
-export const ExitCodes = {
-  SUCCESS: 0,
-  ERROR: 1
-} as const
+import type { ExitCode } from '@/typings/exit-codes'
 
-export type ExitCode = (typeof ExitCodes)[keyof typeof ExitCodes]
+export const ExitCodes = {
+  SUCCESS: 0 as ExitCode,
+  ERROR: 1 as ExitCode
+}
