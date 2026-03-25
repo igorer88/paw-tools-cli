@@ -9,9 +9,24 @@ const mockFileHandler = {
   readJson: jest.fn().mockResolvedValue({ app: { debug: true } })
 }
 
+const mockConsoleService = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  start: jest.fn(),
+  done: jest.fn(),
+  fail: jest.fn(),
+  log: jest.fn()
+}
+
 jest.mock('node:fs')
 jest.mock('@/shared/file-handler', () => ({
   FileHandlerService: jest.fn().mockImplementation(() => mockFileHandler)
+}))
+jest.mock('@/shared/console', () => ({
+  ConsoleService: jest.fn().mockImplementation(() => mockConsoleService)
 }))
 
 describe('ConfigCommand', () => {
@@ -24,6 +39,7 @@ describe('ConfigCommand', () => {
     delete process.env.PAW_CONFIG
     mockFileHandler.exists.mockReturnValue(true)
     mockFileHandler.readJson.mockResolvedValue({ app: { debug: true } })
+    mockConsoleService.success.mockClear()
     command = new ConfigCommand()
   })
 
@@ -107,6 +123,16 @@ describe('ConfigCommand', () => {
     it('should return the provided value', () => {
       const result = command.parseConfig('/custom/path.json')
       expect(result).toBe('/custom/path.json')
+    })
+  })
+
+  describe('run', () => {
+    it('should output success message', async () => {
+      await command.run([])
+
+      expect(mockConsoleService.success).toHaveBeenCalledWith(
+        expect.stringContaining('Configuration loaded successfully')
+      )
     })
   })
 })
