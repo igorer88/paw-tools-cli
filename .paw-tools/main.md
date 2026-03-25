@@ -408,6 +408,103 @@ const author = `${nameResult.stdout} <${emailResult.stdout}>`
 - Environment variables validated with Joi schema
 - Secrets should never be logged or committed
 
+## ConsoleModule
+
+All CLI output MUST use `ConsoleService`. Never use `console.log`, `console.warn`, or `console.error` directly in commands. The service provides structured logging with consistent formatting.
+
+### Location
+
+```
+src/shared/console/
+├── interfaces/
+│   ├── logger.interface.ts
+│   └── index.ts
+├── console.service.ts
+├── console.module.ts
+└── index.ts
+```
+
+### Usage
+
+```typescript
+import { ConsoleService } from '@/shared/console'
+
+export class MyCommand extends CommandRunner {
+  private readonly consoleService: ConsoleService
+
+  constructor() {
+    super()
+    this.consoleService = new ConsoleService()
+  }
+
+  async run() {
+    this.consoleService.info('Starting operation...')
+    this.consoleService.success('Operation completed!')
+    this.consoleService.warn('Warning message')
+    this.consoleService.error('Error occurred:', error)
+  }
+}
+```
+
+### Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `info(message, ...args)` | General informational messages |
+| `success(message, ...args)` | Success messages (green) |
+| `warn(message, ...args)` | Warning messages (yellow) |
+| `error(message, ...args)` | Error messages (red) |
+| `debug(message, ...args)` | Debug messages |
+| `start(message)` | Start messages for long-running operations |
+| `done(message)` | Success messages (alias for success) |
+| `fail(message)` | Failure messages (red) |
+| `log(message, ...args)` | General log messages |
+
+**Do NOT use `console.log`, `console.warn`, or `console.error` directly in commands.**
+
+### Environment Variables
+
+Configure logging behavior with environment variables:
+
+| Variable | Options | Default | Description |
+|----------|---------|---------|-------------|
+| `APP_LOGGER_LEVELS` | `0-7` or `fatal`, `error`, `warn`, `log`, `info`, `success`, `debug`, `silent` | `3` (info) | Minimum log level |
+| `APP_LOGGER_TAG` | `true`/`false` | `false` | Show `[paw-tools]` prefix |
+| `APP_LOGGER_DATE` | `true`/`false` | `false` | Show timestamps |
+| `APP_LOGGER_FORMAT` | `pretty`/`json` | `pretty` | Output format |
+
+### Log Levels
+
+| Level | Name | Description |
+|-------|------|-------------|
+| 0 | fatal | Only fatal errors |
+| 1 | error | Errors and fatal |
+| 2 | warn | Warnings and below |
+| 3 | log | Normal logs |
+| 4 | info | Info and below (default) |
+| 5 | success | Success and below |
+| 6 | debug | Debug and below |
+| 7 | silent | No output |
+
+### Usage Examples
+
+```bash
+# Default (clean, pretty)
+pnpm cli:dev
+
+# Debug mode
+APP_LOGGER_LEVELS=6 pnpm cli:dev
+
+# Structured (CI-friendly)
+APP_LOGGER_TAG=true APP_LOGGER_DATE=true pnpm cli
+
+# JSON output (for log aggregation)
+APP_LOGGER_FORMAT=json pnpm cli
+
+# Errors only
+APP_LOGGER_LEVELS=1 pnpm cli
+```
+
 ## PromptModule
 
 All CLI prompts MUST use `PromptService`. Never use `@clack/prompts` directly in commands. The service handles cancel detection and provides a consistent user experience.

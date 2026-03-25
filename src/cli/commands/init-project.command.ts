@@ -1,10 +1,9 @@
-// biome-ignore-all lint/suspicious/noConsole: CLI command output
-
 import { join } from 'node:path'
 
 import { Command, CommandRunner, Option } from 'nest-commander'
 import { isMap, isPair, isScalar, type Pair, parseDocument, type Scalar, type YAMLMap } from 'yaml'
 
+import { ConsoleService } from '@/shared/console'
 import { FileHandlerService } from '@/shared/file-handler'
 import { ProcessService } from '@/shared/process'
 import { PromptService } from '@/shared/prompt'
@@ -38,12 +37,14 @@ export class InitProjectCommand extends CommandRunner {
   private readonly fileHandler: FileHandlerService
   private readonly processService: ProcessService
   private readonly promptService: PromptService
+  private readonly consoleService: ConsoleService
 
   constructor() {
     super()
     this.fileHandler = new FileHandlerService()
     this.processService = new ProcessService()
     this.promptService = new PromptService()
+    this.consoleService = new ConsoleService()
   }
 
   private getVersionPlaceholder(format: string): string {
@@ -208,7 +209,7 @@ export class InitProjectCommand extends CommandRunner {
     const packageJsonPath = join(process.cwd(), 'package.json')
 
     if (!this.fileHandler.exists(packageJsonPath)) {
-      console.warn('package.json not found, skipping update.')
+      this.consoleService.warn('package.json not found, skipping update.')
       return
     }
 
@@ -220,7 +221,7 @@ export class InitProjectCommand extends CommandRunner {
       packageJson.author = config.author || packageJson.author
       await this.fileHandler.writeJson(packageJsonPath, packageJson)
     } catch (error) {
-      console.error('Failed to update package.json:', error)
+      this.consoleService.error('Failed to update package.json:', error)
     }
   }
 
@@ -232,7 +233,7 @@ export class InitProjectCommand extends CommandRunner {
       const doc = parseDocument(fileContents)
 
       if (!isMap(doc.contents)) {
-        console.warn('Invalid docker-compose.yml structure')
+        this.consoleService.warn('Invalid docker-compose.yml structure')
         return
       }
 
@@ -241,7 +242,7 @@ export class InitProjectCommand extends CommandRunner {
 
       const servicesPair = doc.contents.items.find((pair) => hasScalarKey(pair, 'services'))
       if (!servicesPair || !isMap(servicesPair.value)) {
-        console.warn('services not found in docker-compose.yml')
+        this.consoleService.warn('services not found in docker-compose.yml')
         return
       }
 
@@ -249,7 +250,7 @@ export class InitProjectCommand extends CommandRunner {
         hasScalarKey(pair, this.mainServiceName)
       )
       if (!mainServicePair || !isMap(mainServicePair.value)) {
-        console.warn(`${this.mainServiceName} service not found in docker-compose.yml`)
+        this.consoleService.warn(`${this.mainServiceName} service not found in docker-compose.yml`)
         return
       }
 
@@ -285,7 +286,7 @@ export class InitProjectCommand extends CommandRunner {
 
       await this.fileHandler.writeFile(dockerComposePath, yamlContent)
     } catch (error) {
-      console.error('Failed to update docker-compose.yml:', error)
+      this.consoleService.error('Failed to update docker-compose.yml:', error)
     }
   }
 
@@ -311,11 +312,11 @@ export class InitProjectCommand extends CommandRunner {
     }
 
     s.stop('Changes applied:')
-    console.log('  ✓ package.json updated')
+    this.consoleService.log('  ✓ package.json updated')
     if (this.fileHandler.exists(dockerComposePath)) {
-      console.log('  ✓ docker-compose.yml updated')
+      this.consoleService.log('  ✓ docker-compose.yml updated')
     }
-    console.log('\n✔ Project initialized successfully.')
+    this.consoleService.success('Project initialized successfully.')
   }
 
   private async initializeInteractive(): Promise<void> {
@@ -371,12 +372,12 @@ export class InitProjectCommand extends CommandRunner {
     const changes = this.getConfigChanges(currentConfig, config, dockerConfig)
 
     if (changes.length > 0) {
-      console.log('\nChanges to be applied:')
+      this.consoleService.info('\nChanges to be applied:')
       for (const change of changes) {
-        console.log(`  ${change}`)
+        this.consoleService.log(`  ${change}`)
       }
     } else {
-      console.log('\nNo changes to apply.')
+      this.consoleService.info('\nNo changes to apply.')
     }
 
     const shouldWrite = await this.promptService.confirm({
@@ -384,7 +385,7 @@ export class InitProjectCommand extends CommandRunner {
     })
 
     if (!shouldWrite) {
-      console.log('Operation cancelled.')
+      this.consoleService.info('Operation cancelled.')
       process.exit(0)
     }
 
@@ -393,14 +394,14 @@ export class InitProjectCommand extends CommandRunner {
       if (dockerConfig) {
         await this.updateDockerCompose(dockerConfig)
       }
-      console.log('\nChanges applied:')
-      console.log('  ✓ package.json updated')
+      this.consoleService.info('\nChanges applied:')
+      this.consoleService.log('  ✓ package.json updated')
       if (dockerConfig) {
-        console.log('  ✓ docker-compose.yml updated')
+        this.consoleService.log('  ✓ docker-compose.yml updated')
       }
-      console.log('\n✔ Project initialized successfully.')
+      this.consoleService.success('Project initialized successfully.')
     } catch (error) {
-      console.error('Failed to update project:', error)
+      this.consoleService.error('Failed to update project:', error)
     }
   }
 
