@@ -240,6 +240,19 @@ describe('FileHandlerService', () => {
         // /tmp is outside testDir, should throw
         expect(() => service.exists('/tmp/malicious')).toThrow('Path traversal detected')
       })
+
+      it('should throw when resolved path escapes base directory', () => {
+        // Set base to /tmp, path without .. but resolves outside
+        setBaseDirectory('/tmp')
+        expect(() => service.exists('/home/user/file.txt')).toThrow('Path traversal detected')
+      })
+
+      it('should allow .. in path when it stays within cwd (no base set)', () => {
+        // When no base directory is set, path with .. that stays in cwd should be allowed
+        setBaseDirectory(undefined)
+        // This should NOT throw - '../paw-tools-cli' resolves back to cwd
+        expect(() => service.exists('../paw-tools-cli')).not.toThrow()
+      })
     })
   })
 })
