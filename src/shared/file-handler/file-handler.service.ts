@@ -11,10 +11,10 @@ import type { FileReader, FileSystem, FileWriter, YamlHandler } from './interfac
  * @throws Error if path contains traversal attempts
  */
 function validatePath(path: string, basePath?: string): string {
-  const normalizedBase = resolve(basePath || process.cwd())
-
-  // Check for ".." in the original path
+  // Always block ".." path traversal
   if (path.includes('..')) {
+    // If basePath is set, use it; otherwise use cwd
+    const normalizedBase = resolve(basePath || process.cwd())
     const resolved = resolve(path)
     // Check if .. escapes the base directory
     if (!resolved.startsWith(normalizedBase)) {
@@ -22,14 +22,20 @@ function validatePath(path: string, basePath?: string): string {
     }
   }
 
-  // Check resolved path stays within base
-  const normalizedPath = resolve(basePath || process.cwd(), path)
+  // If base directory is set, enforce it
+  if (basePath) {
+    const normalizedPath = resolve(basePath, path)
+    const normalizedBase = resolve(basePath)
 
-  if (!normalizedPath.startsWith(normalizedBase)) {
-    throw new Error(`Path traversal detected: "${path}"`)
+    if (!normalizedPath.startsWith(normalizedBase)) {
+      throw new Error(`Path traversal detected: "${path}"`)
+    }
+
+    return normalizedPath
   }
 
-  return normalizedPath
+  // No base directory - allow absolute paths (will fail naturally if file doesn't exist)
+  return resolve(path)
 }
 
 /**
