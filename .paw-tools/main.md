@@ -515,3 +515,30 @@ const today = getCalver() // "2026.03.24"
 // Or for a specific date
 const specific = getCalver(new Date('2024-01-15')) // "2024.01.15"
 ```
+
+## Testing
+
+All test-related files MUST be placed in the `test/` folder. This includes:
+
+- **Unit tests**: `src/**/*.spec.ts` (co-located with source)
+- **E2E tests**: `test/*.e2e-spec.ts`
+- **Test mocks**: `test/__mocks__/`
+
+### Test Mocks
+
+Mock files for external modules should be in `test/__mocks__/`:
+
+```
+test/
+├── __mocks__/
+│   └── @clack/
+│       └── prompts.ts    # Mock for @clack/prompts
+├── app.e2e-spec.ts
+└── jest-e2e.json
+```
+
+The jest config maps mocks to `test/__mocks__/`:
+- Unit tests (`jest.config.mjs`): `moduleNameMapper` points to `<rootDir>/../test/__mocks__/`
+- E2E tests (`test/jest-e2e.json`): `moduleNameMapper` points to `<rootDir>/__mocks__/`
+
+**Do NOT create mocks in `src/__mocks__/`**. All test mocks belong in `test/__mocks__/`.
