@@ -1,7 +1,5 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
 
-import * as clack from '@clack/prompts'
-
 import type { Testable } from '@/typings/tests'
 
 import { InitProjectCommand } from './init-project.command'
@@ -14,21 +12,21 @@ const mockFileHandler = {
   writeJson: jest.fn().mockResolvedValue(undefined)
 }
 
+const mockPromptService = {
+  text: jest.fn(),
+  select: jest.fn(),
+  confirm: jest.fn(),
+  spinner: jest.fn(),
+  spinnerMessage: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() }))
+}
+
 jest.mock('node:fs')
 jest.mock('node:fs/promises')
 jest.mock('@/shared/file-handler', () => ({
   FileHandlerService: jest.fn().mockImplementation(() => mockFileHandler)
 }))
-jest.mock('@clack/prompts', () => ({
-  text: jest.fn(),
-  confirm: jest.fn(),
-  select: jest.fn(),
-  spinner: jest.fn(() => ({
-    start: jest.fn(),
-    stop: jest.fn()
-  })),
-  cancel: jest.fn(),
-  isCancel: jest.fn(() => false)
+jest.mock('@/shared/prompt', () => ({
+  PromptService: jest.fn().mockImplementation(() => mockPromptService)
 }))
 
 jest.mock('yaml', () => {
@@ -197,18 +195,12 @@ describe('InitProjectCommand', () => {
   let consoleErrorSpy: jest.SpyInstance
 
   beforeEach(() => {
-    // Reset mocks completely and re-apply defaults
-    ;(clack.text as jest.Mock).mockReset()
-    ;(clack.confirm as jest.Mock).mockReset()
-    ;(clack.select as jest.Mock).mockReset()
-    ;(clack.spinner as jest.Mock).mockReset()
-    ;(clack.cancel as jest.Mock).mockReset()
-    ;(clack.isCancel as unknown as jest.Mock).mockReset()
-    ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(false)
-    ;(clack.spinner as jest.Mock).mockImplementation(() => ({
-      start: jest.fn(),
-      stop: jest.fn()
-    }))
+    mockPromptService.text.mockReset()
+    mockPromptService.select.mockReset()
+    mockPromptService.confirm.mockReset()
+    mockPromptService.spinner.mockReset()
+    mockPromptService.spinnerMessage.mockReset()
+    mockPromptService.spinnerMessage.mockReturnValue({ start: jest.fn(), stop: jest.fn() })
     mockFileHandler.exists.mockReset()
     mockFileHandler.readFile.mockReset()
     mockFileHandler.readJson.mockReset()
@@ -216,7 +208,6 @@ describe('InitProjectCommand', () => {
     mockFileHandler.writeJson.mockReset()
     mockProcessService.exec.mockReset()
     mockProcessService.exec.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
-    // Set default behaviors
     mockFileHandler.exists.mockReturnValue(true)
     mockFileHandler.readFile.mockResolvedValue('{}')
     mockFileHandler.readJson.mockResolvedValue({})
@@ -261,7 +252,7 @@ describe('InitProjectCommand', () => {
   describe('initializeWithDefaults', () => {
     it('should use spinner and default values', async () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
-      ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
+      mockPromptService.spinnerMessage.mockReturnValue(mockSpinner)
       mockFileHandler.exists.mockReturnValue(true)
       mockFileHandler.readJson.mockResolvedValue({
         name: 'old',
@@ -278,7 +269,7 @@ describe('InitProjectCommand', () => {
 
     it('should skip package.json update if file does not exist', async () => {
       const mockSpinner = { start: jest.fn(), stop: jest.fn() }
-      ;(clack.spinner as jest.Mock).mockReturnValue(mockSpinner)
+      mockPromptService.spinnerMessage.mockReturnValue(mockSpinner)
       mockFileHandler.exists.mockReturnValue(false)
 
       await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
@@ -297,9 +288,9 @@ describe('InitProjectCommand', () => {
     })
 
     it('should prompt for all fields using current config', async () => {
-      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
-      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.text as jest.Mock).mockResolvedValue('test-value')
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.readJson.mockResolvedValue({
         name: 'current-name',
         description: 'current-desc',
@@ -309,18 +300,18 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(clack.text).toHaveBeenCalledTimes(4)
-      expect(clack.confirm).toHaveBeenCalledTimes(1)
+      expect(mockPromptService.text).toHaveBeenCalledTimes(4)
+      expect(mockPromptService.confirm).toHaveBeenCalledTimes(1)
     })
 
     it('should show changes before confirmation', async () => {
-      ;(clack.text as jest.Mock)
+      ;(mockPromptService.text as jest.Mock)
         .mockResolvedValueOnce('new-name')
         .mockResolvedValueOnce('current-desc')
         .mockResolvedValueOnce('1.0.0')
         .mockResolvedValueOnce('current-author')
-      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.readJson.mockResolvedValue({
         name: 'current-name',
         description: 'current-desc',
@@ -334,154 +325,16 @@ describe('InitProjectCommand', () => {
       expect(consoleSpy).toHaveBeenCalledWith('  name: "current-name" → "new-name"')
     })
 
-    it('should cancel when user rejects confirmation', async () => {
-      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
-      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(false)
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation()
-
-      await (command as Testable<InitProjectCommand>)['initializeInteractive']()
-
-      expect(clack.cancel).toHaveBeenCalledWith('Operation cancelled.')
-      expect(_exitSpy).toHaveBeenCalledWith(0)
-    })
-
-    it('should cancel on user cancel for name', async () => {
-      ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-      expect(_exitSpy).toHaveBeenCalledWith(0)
-    })
-
-    it('should cancel on user cancel for description', async () => {
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('test-name')
-        .mockResolvedValueOnce(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel on user cancel for version', async () => {
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('test-name')
-        .mockResolvedValueOnce('test-desc')
-        .mockResolvedValueOnce(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('test-name')
-        .mockResolvedValueOnce('test-desc')
-        .mockResolvedValueOnce('1.0.0')
-        .mockResolvedValueOnce(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      mockFileHandler.exists.mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel on user cancel for author', async () => {
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('test-name')
-        .mockResolvedValueOnce('test-desc')
-        .mockResolvedValueOnce('1.0.0')
-        .mockResolvedValueOnce(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      mockFileHandler.exists.mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel when confirmation is cancelled', async () => {
-      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      mockFileHandler.exists.mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel on version format selection cancel', async () => {
-      ;(clack.text as jest.Mock).mockResolvedValue('test-value')
-      ;(clack.select as jest.Mock).mockResolvedValue(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      mockFileHandler.exists.mockImplementation((path: string) => {
-        return path.includes('package.json')
-      })
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeInteractive']()
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
     it('should show no changes message when values are same', async () => {
       mockFileHandler.exists.mockImplementation((path: string) => {
         return !path.includes('docker-compose') // Skip docker-compose checks
       })
-      ;(clack.text as jest.Mock)
+      ;(mockPromptService.text as jest.Mock)
         .mockResolvedValueOnce('api') // name
         .mockResolvedValueOnce('current-value') // description
         .mockResolvedValueOnce('current-value') // version
         .mockResolvedValueOnce('Git Name <git@email.com>') // author
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.readJson.mockResolvedValue({
         name: 'api',
         description: 'current-value',
@@ -501,32 +354,35 @@ describe('InitProjectCommand', () => {
     })
 
     it('should use calver format when selected', async () => {
-      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
-      ;(clack.text as jest.Mock)
+      const { getCalver } = require('@/shared/utils.helper')
+      const todayCalver = getCalver()
+      ;(mockPromptService.text as jest.Mock)
         .mockResolvedValueOnce('test-name')
         .mockResolvedValueOnce('test-desc')
         .mockResolvedValueOnce(todayCalver)
         .mockResolvedValueOnce('test-author')
-      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.readJson.mockResolvedValue({})
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(clack.select).toHaveBeenCalled()
+      expect(mockPromptService.select).toHaveBeenCalled()
       expect(consoleSpy).toHaveBeenCalledWith(`  version: "0.1.0" → "${todayCalver}"`)
     })
 
     it('should update both package.json and docker-compose.yml when docker exists', async () => {
-      ;(clack.text as jest.Mock)
+      ;(mockPromptService.text as jest.Mock)
         .mockResolvedValueOnce('test-name')
         .mockResolvedValueOnce('test-desc')
         .mockResolvedValueOnce('1.0.0')
         .mockResolvedValueOnce('test-author')
         .mockResolvedValueOnce('test-service')
         .mockResolvedValueOnce('latest')
-      ;(clack.select as jest.Mock).mockResolvedValueOnce('semver').mockResolvedValueOnce('pnpm')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.select as jest.Mock)
+        .mockResolvedValueOnce('semver')
+        .mockResolvedValueOnce('pnpm')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.exists.mockReturnValue(true) // docker-compose.yml exists
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
@@ -540,13 +396,13 @@ describe('InitProjectCommand', () => {
     })
 
     it('should accept valid kebab-case names', async () => {
-      ;(clack.text as jest.Mock)
+      ;(mockPromptService.text as jest.Mock)
         .mockResolvedValueOnce('my-awesome-app')
         .mockResolvedValueOnce('test-desc')
         .mockResolvedValueOnce('0.1.0')
         .mockResolvedValueOnce('test-author')
-      ;(clack.select as jest.Mock).mockResolvedValue('semver')
-      ;(clack.confirm as jest.Mock).mockResolvedValue(true)
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('semver')
+      ;(mockPromptService.confirm as jest.Mock).mockResolvedValue(true)
       mockFileHandler.exists.mockImplementation((path: string) => {
         return path.includes('package.json')
       })
@@ -588,8 +444,10 @@ describe('InitProjectCommand', () => {
 
     it('should prompt for Docker config when docker-compose.yml exists', async () => {
       mockFileHandler.exists.mockReturnValue(true)
-      ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
-      ;(clack.select as jest.Mock).mockResolvedValue('pnpm')
+      ;(mockPromptService.text as jest.Mock)
+        .mockResolvedValueOnce('my-service')
+        .mockResolvedValueOnce('1.0.0')
+      ;(mockPromptService.select as jest.Mock).mockResolvedValue('pnpm')
 
       const result = await (command as Testable<InitProjectCommand>)['initializeDockerConfig'](
         'my-project'
@@ -602,58 +460,6 @@ describe('InitProjectCommand', () => {
         packageManager: 'pnpm',
         registryUrl: 'https://registry.npmjs.org/'
       })
-    })
-
-    it('should cancel on service name cancel', async () => {
-      mockFileHandler.exists.mockReturnValue(true)
-      ;(clack.text as jest.Mock).mockResolvedValue(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockReturnValue(true)
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel on image version cancel', async () => {
-      mockFileHandler.exists.mockReturnValue(true)
-      ;(clack.text as jest.Mock)
-        .mockResolvedValueOnce('my-service')
-        .mockResolvedValueOnce(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
-    })
-
-    it('should cancel on package manager cancel', async () => {
-      mockFileHandler.exists.mockReturnValue(true)
-      ;(clack.text as jest.Mock).mockResolvedValueOnce('my-service').mockResolvedValueOnce('1.0.0')
-      ;(clack.select as jest.Mock).mockResolvedValue(Symbol('cancel'))
-      ;(clack.isCancel as unknown as jest.Mock).mockImplementation(
-        (val: unknown) => typeof val === 'symbol'
-      )
-      const _exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('process.exit')
-      }) as (code?: number) => never)
-
-      await expect(
-        (command as Testable<InitProjectCommand>)['initializeDockerConfig']('my-project')
-      ).rejects.toThrow('process.exit')
-
-      expect(clack.cancel).toHaveBeenCalled()
     })
   })
 
@@ -1061,7 +867,8 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return calver placeholder', () => {
-      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
+      const { getCalver } = require('@/shared/utils.helper')
+      const todayCalver = getCalver()
       expect((command as Testable<InitProjectCommand>)['getVersionPlaceholder']('calver')).toBe(
         todayCalver
       )
@@ -1086,7 +893,8 @@ describe('InitProjectCommand', () => {
     })
 
     it('should return calver default with current date', () => {
-      const todayCalver = (command as Testable<InitProjectCommand>)['getTodayCalver']()
+      const { getCalver } = require('@/shared/utils.helper')
+      const todayCalver = getCalver()
       const result = (command as Testable<InitProjectCommand>)['getVersionDefault']('calver')
       expect(result).toBe(todayCalver)
     })
@@ -1167,18 +975,6 @@ describe('InitProjectCommand', () => {
       expect(
         (command as Testable<InitProjectCommand>)['validateVersion']('release-1.0', 'custom')
       ).toBeUndefined()
-    })
-  })
-
-  describe('getTodayCalver', () => {
-    it('should return today in YYYY.MM.DD format', () => {
-      const result = (command as Testable<InitProjectCommand>)['getTodayCalver']()
-      expect(result).toMatch(/^\d{4}\.\d{2}\.\d{2}$/)
-      const [year, month, day] = result.split('.').map(Number)
-      const today = new Date()
-      expect(year).toBe(today.getFullYear())
-      expect(month).toBe(today.getMonth() + 1)
-      expect(day).toBe(today.getDate())
     })
   })
 
