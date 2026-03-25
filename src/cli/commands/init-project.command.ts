@@ -2,12 +2,13 @@
 
 import { join } from 'node:path'
 
-import { cancel, confirm, isCancel, select, spinner, text } from '@clack/prompts'
 import { Command, CommandRunner, Option } from 'nest-commander'
 import { isMap, isPair, isScalar, type Pair, parseDocument, type Scalar, type YAMLMap } from 'yaml'
 
 import { FileHandlerService } from '@/shared/file-handler'
 import { ProcessService } from '@/shared/process'
+import { PromptService } from '@/shared/prompt'
+import { getCalver, validateCalver, validateKebabCase, validateSemver } from '@/shared/utils.helper'
 
 interface InitProjectOptions {
   defaults?: boolean
@@ -36,11 +37,13 @@ export class InitProjectCommand extends CommandRunner {
   private readonly mainServiceName = 'api'
   private readonly fileHandler: FileHandlerService
   private readonly processService: ProcessService
+  private readonly promptService: PromptService
 
   constructor() {
     super()
     this.fileHandler = new FileHandlerService()
     this.processService = new ProcessService()
+    this.promptService = new PromptService()
   }
 
   private getVersionPlaceholder(format: string): string {
@@ -48,7 +51,7 @@ export class InitProjectCommand extends CommandRunner {
       case 'semver':
         return '0.1.0'
       case 'calver':
-        return this.getTodayCalver()
+        return getCalver()
       case 'custom':
         return 'v1'
       default:
@@ -61,7 +64,7 @@ export class InitProjectCommand extends CommandRunner {
       case 'semver':
         return '0.1.0'
       case 'calver':
-        return this.getTodayCalver()
+        return getCalver()
       case 'custom':
         return '1'
       default:
@@ -69,25 +72,19 @@ export class InitProjectCommand extends CommandRunner {
     }
   }
 
-  private getTodayCalver(): string {
-    const now = new Date()
-    return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`
-  }
-
   private validateVersion(value: string, format: string): string | undefined {
     if (!value || value.length === 0) return undefined
 
     switch (format) {
       case 'semver':
-        if (!/^\d+\.\d+\.\d+/.test(value)) return 'Must be semver format (x.y.z)'
-        break
+        return validateSemver(value)
       case 'calver':
-        if (!/^\d{4}\.\d{1,2}\.\d+/.test(value)) return 'Must be calver format (YYYY.M.PATCH)'
-        break
+        return validateCalver(value)
       case 'custom':
-        break
+        return undefined
+      default:
+        return undefined
     }
-    return undefined
   }
 
   private async getGitAuthor(): Promise<string> {
@@ -175,27 +172,19 @@ export class InitProjectCommand extends CommandRunner {
       return null
     }
 
-    const serviceName = await text({
+    const serviceName = await this.promptService.text({
       message: 'Enter Docker service name:',
       placeholder: projectName,
       defaultValue: projectName
     })
-    if (isCancel(serviceName)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const imageVersion = await text({
+    const imageVersion = await this.promptService.text({
       message: 'Enter Docker image version:',
       placeholder: 'latest',
       defaultValue: 'latest'
     })
-    if (isCancel(imageVersion)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const packageManager = await select({
+    const packageManager = await this.promptService.select({
       message: 'Select package manager:',
       options: [
         { value: 'pnpm', label: 'pnpm' },
@@ -203,18 +192,14 @@ export class InitProjectCommand extends CommandRunner {
         { value: 'yarn', label: 'yarn' }
       ]
     })
-    if (isCancel(packageManager)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
     const registryUrl = 'https://registry.npmjs.org/'
 
     return {
-      serviceName: serviceName as string,
+      serviceName,
       projectName,
-      imageVersion: imageVersion as string,
-      packageManager: packageManager as string,
+      imageVersion,
+      packageManager,
       registryUrl
     }
   }
@@ -305,8 +290,10 @@ export class InitProjectCommand extends CommandRunner {
   }
 
   private async initializeWithDefaults(): Promise<void> {
-    const s = spinner()
-    s.start('Initializing project with defaults...')
+    const s = this.promptService.spinnerMessage({
+      message: 'Initializing project with defaults...'
+    })
+    s.start()
 
     const config = await this.getDefaultConfig()
     await this.updatePackageJson(config)
@@ -334,74 +321,52 @@ export class InitProjectCommand extends CommandRunner {
   private async initializeInteractive(): Promise<void> {
     const currentConfig = await this.getCurrentConfig()
 
-    const name = await text({
+    const name = await this.promptService.text({
       message: 'Enter project name:',
       placeholder: currentConfig.name,
       defaultValue: currentConfig.name,
       validate: (value) => {
         if (!value || value.length === 0) return 'Name is required!'
-        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)) {
-          return 'Name must be kebab-case (lowercase, numbers, hyphens)'
-        }
+        return validateKebabCase(value)
       }
     })
-    if (isCancel(name)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const description = await text({
+    const description = await this.promptService.text({
       message: 'Enter project description:',
       placeholder: currentConfig.description,
       defaultValue: currentConfig.description
     })
-    if (isCancel(description)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const versionFormat = await select({
+    const versionFormat = await this.promptService.select({
       message: 'Select version format:',
       options: [
         { value: 'semver', label: 'Semantic (0.1.0)' },
-        { value: 'calver', label: 'Calendar (2024.03.1)' },
+        { value: 'calver', label: `Calendar (${getCalver()})` },
         { value: 'custom', label: 'Custom (any format)' }
       ]
     })
-    if (isCancel(versionFormat)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const version = await text({
+    const version = await this.promptService.text({
       message: 'Enter project version:',
-      placeholder: this.getVersionPlaceholder(versionFormat as string),
-      defaultValue: this.getVersionDefault(versionFormat as string),
-      validate: (value) => this.validateVersion(value, versionFormat as string)
+      placeholder: this.getVersionPlaceholder(versionFormat),
+      defaultValue: this.getVersionDefault(versionFormat),
+      validate: (value) => this.validateVersion(value, versionFormat)
     })
-    if (isCancel(version)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
-    const author = await text({
+    const author = await this.promptService.text({
       message: 'Enter project author:',
       placeholder: currentConfig.author,
       defaultValue: currentConfig.author
     })
-    if (isCancel(author)) {
-      cancel('Operation cancelled.')
-      process.exit(0)
-    }
 
     const config: ProjectConfig = {
-      name: name as string,
-      description: description as string,
-      version: version as string,
-      author: author as string
+      name,
+      description,
+      version,
+      author
     }
 
-    const dockerConfig = await this.initializeDockerConfig(name as string)
+    const dockerConfig = await this.initializeDockerConfig(name)
 
     const changes = this.getConfigChanges(currentConfig, config, dockerConfig)
 
@@ -414,12 +379,12 @@ export class InitProjectCommand extends CommandRunner {
       console.log('\nNo changes to apply.')
     }
 
-    const shouldWrite = await confirm({
+    const shouldWrite = await this.promptService.confirm({
       message: 'Write changes?'
     })
 
-    if (isCancel(shouldWrite) || !shouldWrite) {
-      cancel('Operation cancelled.')
+    if (!shouldWrite) {
+      console.log('Operation cancelled.')
       process.exit(0)
     }
 
