@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { FileHandlerService } from './file-handler.service'
+import { FileHandlerService, getBaseDirectory, setBaseDirectory } from './file-handler.service'
 
 describe('FileHandlerService', () => {
   const testDir = join(process.cwd(), 'test-temp')
@@ -135,6 +135,111 @@ describe('FileHandlerService', () => {
 
       expect(service.exists(testSymlinkDir)).toBe(true)
       expect(lstatSync(testSymlinkDir).isSymbolicLink()).toBe(true)
+    })
+  })
+
+  describe('path validation', () => {
+    afterEach(() => {
+      setBaseDirectory(undefined)
+    })
+
+    describe('setBaseDirectory and getBaseDirectory', () => {
+      it('should set and get base directory', () => {
+        setBaseDirectory('/test/path')
+        expect(getBaseDirectory()).toBe('/test/path')
+      })
+
+      it('should return undefined when not set', () => {
+        setBaseDirectory(undefined)
+        expect(getBaseDirectory()).toBeUndefined()
+      })
+
+      it('should resolve relative paths to absolute', () => {
+        setBaseDirectory('/test')
+        expect(getBaseDirectory()).toBe('/test')
+      })
+    })
+
+    describe('readFile with path validation', () => {
+      it('should throw on path traversal attempt', async () => {
+        setBaseDirectory(testDir)
+        await expect(service.readFile('../package.json')).rejects.toThrow('Path traversal detected')
+      })
+
+      it('should allow valid paths within base directory', async () => {
+        setBaseDirectory(testDir)
+        writeFileSync(testFile, 'test content')
+        const content = await service.readFile('test.json')
+        expect(content).toBe('test content')
+      })
+    })
+
+    describe('writeFile with path validation', () => {
+      it('should throw on path traversal attempt', async () => {
+        setBaseDirectory(testDir)
+        await expect(service.writeFile('../../etc/passwd', 'malicious')).rejects.toThrow(
+          'Path traversal detected'
+        )
+      })
+
+      it('should allow valid paths within base directory', async () => {
+        setBaseDirectory(testDir)
+        await service.writeFile('test.json', 'test content')
+        expect(service.exists(join(testDir, 'test.json'))).toBe(true)
+      })
+    })
+
+    describe('exists with path validation', () => {
+      it('should throw on path traversal attempt', () => {
+        setBaseDirectory(testDir)
+        expect(() => service.exists('../secret.txt')).toThrow('Path traversal detected')
+      })
+
+      it('should allow valid paths within base directory', () => {
+        writeFileSync(testFile, '{}')
+        setBaseDirectory(testDir)
+        expect(service.exists('test.json')).toBe(true)
+      })
+    })
+
+    describe('createSymlink with path validation', () => {
+      it('should throw on path traversal in target', async () => {
+        setBaseDirectory(testDir)
+        const validSource = join(testDir, 'valid-source')
+        writeFileSync(validSource, 'test')
+
+        await expect(service.createSymlink(validSource, '../../target', 'file')).rejects.toThrow(
+          'Path traversal detected'
+        )
+      })
+
+      it('should throw when symlink source does not exist', async () => {
+        setBaseDirectory(testDir)
+        await expect(service.createSymlink('/non/existent', 'test-link', 'file')).rejects.toThrow(
+          'Symlink source does not exist'
+        )
+      })
+    })
+
+    describe('path validation edge cases', () => {
+      it('should allow absolute paths without base directory', () => {
+        setBaseDirectory(undefined)
+        expect(() => service.exists(testFile)).not.toThrow()
+      })
+
+      it('should throw path traversal attempt when .. escapes base', () => {
+        // Set base to testDir, then try to escape to parent
+        setBaseDirectory(testDir)
+        // This should trigger the "Path traversal detected" error
+        expect(() => service.exists('../package.json')).toThrow('Path traversal detected')
+      })
+
+      it('should throw when absolute path is outside base', () => {
+        // Set base to testDir, try to access absolute path outside
+        setBaseDirectory(testDir)
+        // /tmp is outside testDir, should throw
+        expect(() => service.exists('/tmp/malicious')).toThrow('Path traversal detected')
+      })
     })
   })
 })
