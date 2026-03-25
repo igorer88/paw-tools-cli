@@ -407,3 +407,111 @@ const author = `${nameResult.stdout} <${emailResult.stdout}>`
 - Use path alias `@/` for internal imports (mapped to `src/`)
 - Environment variables validated with Joi schema
 - Secrets should never be logged or committed
+
+## PromptModule
+
+All CLI prompts MUST use `PromptService`. Never use `@clack/prompts` directly in commands. The service handles cancel detection and provides a consistent user experience.
+
+### Location
+
+```
+src/shared/prompt/
+├── interfaces/
+│   ├── text-prompter.interface.ts
+│   ├── select-prompter.interface.ts
+│   ├── confirm-prompter.interface.ts
+│   ├── spinner-prompter.interface.ts
+│   └── index.ts
+├── prompt.service.ts
+├── prompt.module.ts
+└── index.ts
+```
+
+### Usage
+
+```typescript
+import { PromptService } from '@/shared/prompt'
+
+export class MyCommand extends CommandRunner {
+  private readonly promptService: PromptService
+
+  constructor() {
+    super()
+    this.promptService = new PromptService()
+  }
+
+  async run() {
+    const name = await this.promptService.text({
+      message: 'Enter project name:',
+      placeholder: 'my-project'
+    })
+
+    const type = await this.promptService.select({
+      message: 'Select type:',
+      options: [
+        { value: 'api', label: 'API' },
+        { value: 'web', label: 'Web' }
+      ]
+    })
+
+    const confirm = await this.promptService.confirm({
+      message: 'Continue?'
+    })
+  }
+}
+```
+
+### Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `text(options)` | Prompt for text input with optional validation |
+| `select(options)` | Prompt for single selection from options |
+| `confirm(options)` | Prompt for yes/no confirmation |
+| `spinner(options, fn)` | Run async function with spinner (auto handles Done/Failed) |
+| `spinnerMessage(options)` | Get spinner with manual start/stop control |
+
+### Cancel Handling
+
+All prompts automatically handle user cancellation (Ctrl+C). When cancelled:
+1. Displays "Operation cancelled."
+2. Exits process with code 0
+
+**Do NOT use `@clack/prompts` directly in commands.**
+
+## Validation Utilities
+
+Shared validation functions for common patterns. Located in `src/shared/utils.helper.ts`.
+
+### Available Functions
+
+| Function | Description |
+|----------|-------------|
+| `validateKebabCase(value)` | Validates kebab-case (lowercase, numbers, hyphens) |
+| `validateSemver(value)` | Validates semver format (x.y.z) |
+| `validateCalver(value)` | Validates calver format (YYYY.M.PATCH) |
+| `getCalver(date?)` | Returns date in YYYY.MM.DD format (defaults to today) |
+| `isEmptyObject(obj)` | Checks if object is empty |
+
+### Usage
+
+```typescript
+import { validateKebabCase, validateSemver, validateCalver, getCalver } from '@/shared/utils.helper'
+
+// Validation returns error message or undefined if valid
+const nameError = validateKebabCase('My Project')
+if (nameError) {
+  console.error(nameError) // "Name must be kebab-case (lowercase, numbers, hyphens)"
+}
+
+const semverError = validateSemver('1.0')
+if (semverError) {
+  console.error(semverError) // "Must be semver format (x.y.z)"
+}
+
+// Get current date in calver format
+const today = getCalver() // "2026.03.24"
+
+// Or for a specific date
+const specific = getCalver(new Date('2024-01-15')) // "2024.01.15"
+```
