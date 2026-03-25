@@ -2,6 +2,7 @@ import { join } from 'node:path'
 
 import { Command, CommandRunner, Option } from 'nest-commander'
 
+import { ConsoleService } from '@/shared/console'
 import { FileHandlerService } from '@/shared/file-handler'
 
 interface ConfigCommandOptions {
@@ -14,10 +15,12 @@ interface ConfigCommandOptions {
 })
 export class ConfigCommand extends CommandRunner {
   private readonly fileHandler: FileHandlerService
+  private readonly consoleService: ConsoleService
 
   constructor() {
     super()
     this.fileHandler = new FileHandlerService()
+    this.consoleService = new ConsoleService()
   }
 
   private resolveConfigPath(customPath?: string): string {
@@ -52,7 +55,6 @@ export class ConfigCommand extends CommandRunner {
     const configPath = this.resolveConfigPath(options?.config)
     const config = await this.loadConfig(configPath)
     this.validateConfig(config)
-    // biome-ignore lint/suspicious/noConsole: CLI output
-    console.log('Configuration loaded successfully:', configPath)
+    this.consoleService.success(`Configuration loaded successfully: ${configPath}`)
   }
 }

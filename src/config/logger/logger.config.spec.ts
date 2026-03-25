@@ -13,15 +13,15 @@ describe('LoggerConfig', () => {
   })
 
   it('should use default log levels when env not set', () => {
-    delete process.env.API_LOGGER_LEVELS
+    delete process.env.APP_LOGGER_LEVELS
 
     const { logLevel } = require('./logger.config')
 
     expect(logLevel).toEqual(['log', 'error', 'warn', 'debug', 'verbose', 'fatal'])
   })
 
-  it('should parse custom log levels from API_LOGGER_LEVELS', () => {
-    process.env.API_LOGGER_LEVELS = 'log,error,warn'
+  it('should parse custom log levels from APP_LOGGER_LEVELS', () => {
+    process.env.APP_LOGGER_LEVELS = 'log,error,warn'
 
     const { logLevel } = require('./logger.config')
 
@@ -29,15 +29,15 @@ describe('LoggerConfig', () => {
   })
 
   it('should handle single log level', () => {
-    process.env.API_LOGGER_LEVELS = 'error'
+    process.env.APP_LOGGER_LEVELS = 'error'
 
     const { logLevel } = require('./logger.config')
 
     expect(logLevel).toEqual(['error'])
   })
 
-  it('should handle empty API_LOGGER_LEVELS', () => {
-    process.env.API_LOGGER_LEVELS = ''
+  it('should handle empty APP_LOGGER_LEVELS', () => {
+    process.env.APP_LOGGER_LEVELS = ''
 
     const { logLevel } = require('./logger.config')
 
@@ -46,7 +46,7 @@ describe('LoggerConfig', () => {
 
   it('should handle all NestJS log levels', () => {
     const allLevels: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
-    process.env.API_LOGGER_LEVELS = allLevels.join(',')
+    process.env.APP_LOGGER_LEVELS = allLevels.join(',')
 
     const { logLevel } = require('./logger.config')
 
