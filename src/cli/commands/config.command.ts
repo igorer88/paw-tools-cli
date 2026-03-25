@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { Command, CommandRunner, Option } from 'nest-commander'
 
 import { ConsoleService } from '@/shared/console'
+import { ExitCodes } from '@/shared/exit-codes'
 import { FileHandlerService } from '@/shared/file-handler'
 
 interface ConfigCommandOptions {
@@ -52,9 +53,14 @@ export class ConfigCommand extends CommandRunner {
   }
 
   async run(_passedParam: string[], options?: ConfigCommandOptions): Promise<void> {
-    const configPath = this.resolveConfigPath(options?.config)
-    const config = await this.loadConfig(configPath)
-    this.validateConfig(config)
-    this.consoleService.success(`Configuration loaded successfully: ${configPath}`)
+    try {
+      const configPath = this.resolveConfigPath(options?.config)
+      const config = await this.loadConfig(configPath)
+      this.validateConfig(config)
+      this.consoleService.success(`Configuration loaded successfully: ${configPath}`)
+    } catch (error) {
+      this.consoleService.error('Error:', error)
+      process.exit(ExitCodes.ERROR)
+    }
   }
 }

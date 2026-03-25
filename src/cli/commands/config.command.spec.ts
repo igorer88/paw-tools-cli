@@ -31,16 +31,23 @@ jest.mock('@/shared/console', () => ({
 
 describe('ConfigCommand', () => {
   let command: ConfigCommand
+  let processExitSpy: jest.SpyInstance
   const originalEnv = process.env
 
   beforeEach(() => {
     jest.clearAllMocks()
+    jest.restoreAllMocks()
     process.env = { ...originalEnv }
     delete process.env.PAW_CONFIG
     mockFileHandler.exists.mockReturnValue(true)
     mockFileHandler.readJson.mockResolvedValue({ app: { debug: true } })
     mockConsoleService.success.mockClear()
+    processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as () => never)
     command = new ConfigCommand()
+  })
+
+  afterEach(() => {
+    processExitSpy.mockRestore()
   })
 
   afterAll(() => {
@@ -158,23 +165,32 @@ describe('ConfigCommand', () => {
       expect(mockFileHandler.exists).not.toHaveBeenCalledWith('/env/config.json')
     })
 
-    it('should throw when config file does not exist', async () => {
+    it('should call process.exit(1) when config file does not exist', async () => {
       mockFileHandler.exists.mockReturnValue(false)
 
-      await expect(command.run([])).rejects.toThrow('Config file not found')
+      await command.run([])
+
+      expect(processExitSpy).toHaveBeenCalledWith(1)
+      expect(mockConsoleService.error).toHaveBeenCalled()
     })
 
-    it('should throw when config read fails', async () => {
+    it('should call process.exit(1) when config read fails', async () => {
       mockFileHandler.exists.mockReturnValue(true)
       mockFileHandler.readJson.mockRejectedValue(new Error('Read error'))
 
-      await expect(command.run([])).rejects.toThrow('Read error')
+      await command.run([])
+
+      expect(processExitSpy).toHaveBeenCalledWith(1)
+      expect(mockConsoleService.error).toHaveBeenCalled()
     })
 
-    it('should throw when config is not an object', async () => {
+    it('should call process.exit(1) when config is not an object', async () => {
       mockFileHandler.readJson.mockResolvedValue('not an object')
 
-      await expect(command.run([])).rejects.toThrow('Config must be a valid JSON object')
+      await command.run([])
+
+      expect(processExitSpy).toHaveBeenCalledWith(1)
+      expect(mockConsoleService.error).toHaveBeenCalled()
     })
   })
 })
