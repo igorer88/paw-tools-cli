@@ -4,6 +4,7 @@ import { Command, CommandRunner, Option } from 'nest-commander'
 import { isMap, isPair, isScalar, type Pair, parseDocument, type Scalar, type YAMLMap } from 'yaml'
 
 import { ConsoleService } from '@/shared/console'
+import { ExitCodes } from '@/shared/exit-codes'
 import { FileHandlerService } from '@/shared/file-handler'
 import { ProcessService } from '@/shared/process'
 import { PromptService } from '@/shared/prompt'
@@ -222,6 +223,7 @@ export class InitProjectCommand extends CommandRunner {
       await this.fileHandler.writeJson(packageJsonPath, packageJson)
     } catch (error) {
       this.consoleService.error('Failed to update package.json:', error)
+      process.exit(ExitCodes.ERROR)
     }
   }
 
@@ -287,6 +289,7 @@ export class InitProjectCommand extends CommandRunner {
       await this.fileHandler.writeFile(dockerComposePath, yamlContent)
     } catch (error) {
       this.consoleService.error('Failed to update docker-compose.yml:', error)
+      process.exit(ExitCodes.ERROR)
     }
   }
 
@@ -402,6 +405,7 @@ export class InitProjectCommand extends CommandRunner {
       this.consoleService.success('Project initialized successfully.')
     } catch (error) {
       this.consoleService.error('Failed to update project:', error)
+      process.exit(ExitCodes.ERROR)
     }
   }
 
@@ -414,10 +418,15 @@ export class InitProjectCommand extends CommandRunner {
   }
 
   async run(_passedParam: string[], options?: InitProjectOptions): Promise<void> {
-    if (options?.defaults) {
-      await this.initializeWithDefaults()
-    } else {
-      await this.initializeInteractive()
+    try {
+      if (options?.defaults) {
+        await this.initializeWithDefaults()
+      } else {
+        await this.initializeInteractive()
+      }
+    } catch (error) {
+      this.consoleService.error('Error:', error)
+      process.exit(ExitCodes.ERROR)
     }
   }
 }
