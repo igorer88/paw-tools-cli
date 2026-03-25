@@ -32,6 +32,9 @@ importers:
       class-validator:
         specifier: ^0.15.1
         version: 0.15.1
+      consola:
+        specifier: ^3.4.2
+        version: 3.4.2
       joi:
         specifier: ^18.0.2
         version: 18.0.2

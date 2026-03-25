@@ -20,6 +20,18 @@ const mockPromptService = {
   spinnerMessage: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() }))
 }
 
+const mockConsoleService = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  start: jest.fn(),
+  done: jest.fn(),
+  fail: jest.fn(),
+  log: jest.fn()
+}
+
 jest.mock('node:fs')
 jest.mock('node:fs/promises')
 jest.mock('@/shared/file-handler', () => ({
@@ -27,6 +39,9 @@ jest.mock('@/shared/file-handler', () => ({
 }))
 jest.mock('@/shared/prompt', () => ({
   PromptService: jest.fn().mockImplementation(() => mockPromptService)
+}))
+jest.mock('@/shared/console', () => ({
+  ConsoleService: jest.fn().mockImplementation(() => mockConsoleService)
 }))
 
 jest.mock('yaml', () => {
@@ -190,9 +205,6 @@ jest.mock('@/shared/process', () => ({
 
 describe('InitProjectCommand', () => {
   let command: InitProjectCommand
-  let consoleSpy: jest.SpyInstance
-  let consoleWarnSpy: jest.SpyInstance
-  let consoleErrorSpy: jest.SpyInstance
 
   beforeEach(() => {
     mockPromptService.text.mockReset()
@@ -208,19 +220,15 @@ describe('InitProjectCommand', () => {
     mockFileHandler.writeJson.mockReset()
     mockProcessService.exec.mockReset()
     mockProcessService.exec.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
+    mockConsoleService.info.mockReset()
+    mockConsoleService.success.mockReset()
+    mockConsoleService.warn.mockReset()
+    mockConsoleService.error.mockReset()
+    mockConsoleService.log.mockReset()
     mockFileHandler.exists.mockReturnValue(true)
     mockFileHandler.readFile.mockResolvedValue('{}')
     mockFileHandler.readJson.mockResolvedValue({})
     command = new InitProjectCommand()
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation()
-    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation()
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
-  })
-
-  afterEach(() => {
-    consoleSpy.mockRestore()
-    consoleWarnSpy.mockRestore()
-    consoleErrorSpy.mockRestore()
   })
 
   it('should be defined', () => {
@@ -274,7 +282,9 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeWithDefaults']()
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith('package.json not found, skipping update.')
+      expect(mockConsoleService.warn).toHaveBeenCalledWith(
+        'package.json not found, skipping update.'
+      )
     })
   })
 
@@ -321,8 +331,8 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(consoleSpy).toHaveBeenCalledWith('\nChanges to be applied:')
-      expect(consoleSpy).toHaveBeenCalledWith('  name: "current-name" → "new-name"')
+      expect(mockConsoleService.info).toHaveBeenCalledWith('\nChanges to be applied:')
+      expect(mockConsoleService.log).toHaveBeenCalledWith('  name: "current-name" → "new-name"')
     })
 
     it('should show no changes message when values are same', async () => {
@@ -350,7 +360,7 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(consoleSpy).toHaveBeenCalledWith('\nNo changes to apply.')
+      expect(mockConsoleService.info).toHaveBeenCalledWith('\nNo changes to apply.')
     })
 
     it('should use calver format when selected', async () => {
@@ -368,7 +378,7 @@ describe('InitProjectCommand', () => {
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
       expect(mockPromptService.select).toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith(`  version: "0.1.0" → "${todayCalver}"`)
+      expect(mockConsoleService.log).toHaveBeenCalledWith(`  version: "0.1.0" → "${todayCalver}"`)
     })
 
     it('should update both package.json and docker-compose.yml when docker exists', async () => {
@@ -387,10 +397,10 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(consoleSpy).toHaveBeenCalledWith('\nChanges applied:')
-      expect(consoleSpy).toHaveBeenCalledWith('  ✓ package.json updated')
-      expect(consoleSpy).toHaveBeenCalledWith('  ✓ docker-compose.yml updated')
-      expect(consoleSpy).toHaveBeenCalledWith('\n✔ Project initialized successfully.')
+      expect(mockConsoleService.info).toHaveBeenCalledWith('\nChanges applied:')
+      expect(mockConsoleService.log).toHaveBeenCalledWith('  ✓ package.json updated')
+      expect(mockConsoleService.log).toHaveBeenCalledWith('  ✓ docker-compose.yml updated')
+      expect(mockConsoleService.success).toHaveBeenCalledWith('Project initialized successfully.')
       expect(mockFileHandler.writeJson).toHaveBeenCalled()
       expect(mockFileHandler.writeFile).toHaveBeenCalled()
     })
@@ -409,7 +419,7 @@ describe('InitProjectCommand', () => {
 
       await (command as Testable<InitProjectCommand>)['initializeInteractive']()
 
-      expect(consoleSpy).toHaveBeenCalledWith('  name: "my-project" → "my-awesome-app"')
+      expect(mockConsoleService.log).toHaveBeenCalledWith('  name: "my-project" → "my-awesome-app"')
     })
 
     it('should reject invalid names (not kebab-case)', async () => {
@@ -753,7 +763,7 @@ describe('InitProjectCommand', () => {
         author: 'test'
       })
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(mockConsoleService.error).toHaveBeenCalledWith(
         'Failed to update package.json:',
         expect.any(Error)
       )
@@ -771,7 +781,7 @@ describe('InitProjectCommand', () => {
         author: 'test'
       })
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(mockConsoleService.error).toHaveBeenCalledWith(
         'Failed to update package.json:',
         expect.any(Error)
       )
@@ -852,7 +862,7 @@ describe('InitProjectCommand', () => {
         registryUrl: 'https://registry.npmjs.org/'
       })
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(mockConsoleService.error).toHaveBeenCalledWith(
         'Failed to update docker-compose.yml:',
         expect.any(Error)
       )
