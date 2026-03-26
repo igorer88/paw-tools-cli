@@ -80,7 +80,14 @@
   },
   "pnpm": {
     "overrides": {
-      "file-type": ">=21.3.2"
-    }
+      "file-type": ">=21.3.2",
+      "tar": ">=7.5.10"
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@swc/core",
+      "sqlite3",
+      "unrs-resolver"
+    ]
   }
 }
