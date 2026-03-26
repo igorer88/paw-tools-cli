@@ -12,7 +12,12 @@ describe('ConfigLoader', () => {
       environment: 'development',
       debug: false,
       secretKey: 'test-secret-key',
-      loggerLevel: 'debug'
+      logger: {
+        level: 'debug',
+        tag: false,
+        date: false,
+        format: 'pretty'
+      }
     }
   }
 
@@ -23,6 +28,9 @@ describe('ConfigLoader', () => {
     delete process.env.DEBUG
     delete process.env.APP_SECRET_KEY
     delete process.env.APP_LOGGER_LEVELS
+    delete process.env.APP_LOGGER_TAG
+    delete process.env.APP_LOGGER_DATE
+    delete process.env.APP_LOGGER_FORMAT
     ;(existsSync as jest.Mock).mockReturnValue(true)
     ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
   })
@@ -44,7 +52,7 @@ describe('ConfigLoader', () => {
     const config = loadConfig()
 
     expect(config.app.environment).toBe('development')
-    expect(config.app.loggerLevel).toBe('debug')
+    expect(config.app.logger.level).toBe('debug')
   })
 
   it('should override environment with NODE_ENV', () => {
@@ -79,11 +87,35 @@ describe('ConfigLoader', () => {
     expect(config.app.secretKey).toBe('my-custom-secret')
   })
 
-  it('should override loggerLevel with APP_LOGGER_LEVELS', () => {
+  it('should override logger level with APP_LOGGER_LEVELS', () => {
     process.env.APP_LOGGER_LEVELS = 'error'
 
     const config = loadConfig()
 
-    expect(config.app.loggerLevel).toBe('error')
+    expect(config.app.logger.level).toBe('error')
+  })
+
+  it('should override logger tag with APP_LOGGER_TAG', () => {
+    process.env.APP_LOGGER_TAG = 'true'
+
+    const config = loadConfig()
+
+    expect(config.app.logger.tag).toBe(true)
+  })
+
+  it('should override logger date with APP_LOGGER_DATE', () => {
+    process.env.APP_LOGGER_DATE = 'true'
+
+    const config = loadConfig()
+
+    expect(config.app.logger.date).toBe(true)
+  })
+
+  it('should override logger format with APP_LOGGER_FORMAT', () => {
+    process.env.APP_LOGGER_FORMAT = 'json'
+
+    const config = loadConfig()
+
+    expect(config.app.logger.format).toBe('json')
   })
 })

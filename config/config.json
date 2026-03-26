@@ -3,6 +3,11 @@
     "environment": "development",
     "debug": false,
     "secretKey": "",
-    "loggerLevel": "debug"
+    "logger": {
+      "level": "debug",
+      "tag": false,
+      "date": false,
+      "format": "pretty"
+    }
   }
 }

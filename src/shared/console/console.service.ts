@@ -11,15 +11,24 @@ function parseLogLevel(level: string | undefined): number {
   return Number.isNaN(num) ? LogLevels.LOG : num
 }
 
+export interface LoggerConfig {
+  level?: string
+  tag?: boolean
+  date?: boolean
+  format?: string
+}
+
 export class ConsoleService implements Logger {
   private readonly logger: ConsolaInstance
 
-  constructor(configLoggerLevel?: string) {
-    // Use env var if set, otherwise use config value, otherwise default to LOG
-    const levels = process.env.APP_LOGGER_LEVELS || configLoggerLevel
-    const showTag = process.env.APP_LOGGER_TAG === 'true'
-    const showDate = process.env.APP_LOGGER_DATE === 'true'
-    const format = process.env.APP_LOGGER_FORMAT
+  constructor(config?: LoggerConfig) {
+    // Env vars override config values (explicit false in config should override default)
+    const levels = process.env.APP_LOGGER_LEVELS || config?.level
+    const showTag = process.env.APP_LOGGER_TAG ? process.env.APP_LOGGER_TAG === 'true' : config?.tag
+    const showDate = process.env.APP_LOGGER_DATE
+      ? process.env.APP_LOGGER_DATE === 'true'
+      : config?.date
+    const format = process.env.APP_LOGGER_FORMAT || config?.format || 'pretty'
 
     const level = parseLogLevel(levels)
 
