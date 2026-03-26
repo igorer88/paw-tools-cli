@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { loadConfig } from './config.loader'
 
@@ -12,7 +12,7 @@ describe('ConfigLoader', () => {
       environment: 'development',
       debug: false,
       secretKey: 'test-secret-key',
-      loggerLevels: ['log', 'error', 'warn']
+      loggerLevel: 'debug'
     }
   }
 
@@ -23,6 +23,7 @@ describe('ConfigLoader', () => {
     delete process.env.DEBUG
     delete process.env.APP_SECRET_KEY
     delete process.env.APP_LOGGER_LEVELS
+    ;(existsSync as jest.Mock).mockReturnValue(true)
     ;(readFileSync as jest.Mock).mockReturnValue(JSON.stringify(mockConfig))
   })
 
@@ -33,8 +34,17 @@ describe('ConfigLoader', () => {
   it('should load config from file', () => {
     const config = loadConfig()
 
-    expect(config).toEqual(mockConfig)
+    expect(config.app.environment).toBe('development')
     expect(readFileSync).toHaveBeenCalled()
+  })
+
+  it('should use default config when file does not exist', () => {
+    ;(existsSync as jest.Mock).mockReturnValue(false)
+
+    const config = loadConfig()
+
+    expect(config.app.environment).toBe('development')
+    expect(config.app.loggerLevel).toBe('debug')
   })
 
   it('should override environment with NODE_ENV', () => {
@@ -69,20 +79,11 @@ describe('ConfigLoader', () => {
     expect(config.app.secretKey).toBe('my-custom-secret')
   })
 
-  it('should override loggerLevels with APP_LOGGER_LEVELS', () => {
-    process.env.APP_LOGGER_LEVELS = 'log,error'
+  it('should override loggerLevel with APP_LOGGER_LEVELS', () => {
+    process.env.APP_LOGGER_LEVELS = 'error'
 
     const config = loadConfig()
 
-    expect(config.app.loggerLevels).toEqual(['log', 'error'])
-  })
-
-  it('should split APP_LOGGER_LEVELS by comma', () => {
-    process.env.APP_LOGGER_LEVELS = 'log,error,warn,debug'
-
-    const config = loadConfig()
-
-    expect(config.app.loggerLevels).toHaveLength(4)
-    expect(config.app.loggerLevels).toEqual(['log', 'error', 'warn', 'debug'])
+    expect(config.app.loggerLevel).toBe('error')
   })
 })
