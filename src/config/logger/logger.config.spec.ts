@@ -1,5 +1,3 @@
-import type { LogLevel } from '@nestjs/common'
-
 describe('LoggerConfig', () => {
   const originalEnv = process.env
 
@@ -12,44 +10,43 @@ describe('LoggerConfig', () => {
     process.env = originalEnv
   })
 
-  it('should use default log levels when env not set', () => {
+  it('should use default log level when env not set', () => {
     delete process.env.APP_LOGGER_LEVELS
 
     const { logLevel } = require('./logger.config')
 
-    expect(logLevel).toEqual(['log', 'error', 'warn', 'debug', 'verbose', 'fatal'])
+    expect(logLevel).toBe('DEBUG')
   })
 
-  it('should parse custom log levels from APP_LOGGER_LEVELS', () => {
-    process.env.APP_LOGGER_LEVELS = 'log,error,warn'
-
-    const { logLevel } = require('./logger.config')
-
-    expect(logLevel).toEqual(['log', 'error', 'warn'])
-  })
-
-  it('should handle single log level', () => {
+  it('should parse custom log level from APP_LOGGER_LEVELS', () => {
     process.env.APP_LOGGER_LEVELS = 'error'
 
     const { logLevel } = require('./logger.config')
 
-    expect(logLevel).toEqual(['error'])
+    expect(logLevel).toBe('ERROR')
   })
 
-  it('should handle empty APP_LOGGER_LEVELS', () => {
-    process.env.APP_LOGGER_LEVELS = ''
+  it('should handle case-insensitive log level', () => {
+    process.env.APP_LOGGER_LEVELS = 'warn'
 
     const { logLevel } = require('./logger.config')
 
-    expect(logLevel).toEqual([''])
+    expect(logLevel).toBe('WARN')
   })
 
-  it('should handle all NestJS log levels', () => {
-    const allLevels: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
-    process.env.APP_LOGGER_LEVELS = allLevels.join(',')
+  it('should handle numeric log level', () => {
+    process.env.APP_LOGGER_LEVELS = '6'
 
     const { logLevel } = require('./logger.config')
 
-    expect(logLevel).toEqual(allLevels)
+    expect(logLevel).toBe('DEBUG')
+  })
+
+  it('should handle invalid log level fallback to default', () => {
+    process.env.APP_LOGGER_LEVELS = 'invalid'
+
+    const { logLevel } = require('./logger.config')
+
+    expect(logLevel).toBe('DEBUG')
   })
 })

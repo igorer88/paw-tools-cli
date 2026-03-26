@@ -1,34 +1,34 @@
 import { type ConsolaInstance, createConsola } from 'consola'
 
+import { LogLevels } from '@/config/constants/logger.constants'
 import type { Logger } from './interfaces'
 
-const LOG_LEVELS = {
-  fatal: 0,
-  error: 1,
-  warn: 2,
-  log: 3,
-  info: 4,
-  success: 5,
-  debug: 6,
-  trace: 7,
-  silent: Infinity
-} as const
-
 function parseLogLevel(level: string | undefined): number {
-  if (!level) return 3
-  if (level in LOG_LEVELS) return LOG_LEVELS[level as keyof typeof LOG_LEVELS]
+  if (!level) return LogLevels.LOG
+  if (level.toUpperCase() in LogLevels)
+    return LogLevels[level.toUpperCase() as keyof typeof LogLevels]
   const num = Number.parseInt(level, 10)
-  return Number.isNaN(num) ? 3 : num
+  return Number.isNaN(num) ? LogLevels.LOG : num
+}
+
+export interface LoggerConfig {
+  level?: string
+  tag?: boolean
+  date?: boolean
+  format?: string
 }
 
 export class ConsoleService implements Logger {
   private readonly logger: ConsolaInstance
 
-  constructor() {
-    const levels = process.env.APP_LOGGER_LEVELS
-    const showTag = process.env.APP_LOGGER_TAG === 'true'
-    const showDate = process.env.APP_LOGGER_DATE === 'true'
-    const format = process.env.APP_LOGGER_FORMAT
+  constructor(config?: LoggerConfig) {
+    // Env vars override config values (explicit false in config should override default)
+    const levels = process.env.APP_LOGGER_LEVELS || config?.level
+    const showTag = process.env.APP_LOGGER_TAG ? process.env.APP_LOGGER_TAG === 'true' : config?.tag
+    const showDate = process.env.APP_LOGGER_DATE
+      ? process.env.APP_LOGGER_DATE === 'true'
+      : config?.date
+    const format = process.env.APP_LOGGER_FORMAT || config?.format || 'pretty'
 
     const level = parseLogLevel(levels)
 
