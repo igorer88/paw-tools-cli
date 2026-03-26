@@ -6,7 +6,6 @@ import { ConsoleService } from '@/shared/console'
 export interface AppConfig {
   app: {
     environment: string
-    debug: boolean
     secretKey: string
     logger: {
       level: string
@@ -20,7 +19,6 @@ export interface AppConfig {
 const DEFAULT_CONFIG: AppConfig = {
   app: {
     environment: 'development',
-    debug: false,
     secretKey: '',
     logger: {
       level: 'debug',
@@ -65,7 +63,6 @@ function applyEnvOverrides(config: AppConfig): AppConfig {
   return {
     app: {
       environment: process.env.NODE_ENV || config.app.environment,
-      debug: process.env.DEBUG === 'true' || config.app.debug,
       secretKey: process.env.APP_SECRET_KEY || config.app.secretKey,
       logger: {
         level: process.env.APP_LOGGER_LEVELS || config.app.logger.level,

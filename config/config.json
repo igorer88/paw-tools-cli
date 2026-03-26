@@ -1,7 +1,6 @@
 {
   "app": {
     "environment": "development",
-    "debug": false,
     "secretKey": "",
     "logger": {
       "level": "debug",

@@ -10,7 +10,6 @@ describe('ConfigLoader', () => {
   const mockConfig = {
     app: {
       environment: 'development',
-      debug: false,
       secretKey: 'test-secret-key',
       logger: {
         level: 'debug',
@@ -25,7 +24,6 @@ describe('ConfigLoader', () => {
     jest.clearAllMocks()
     process.env = { ...originalEnv }
     delete process.env.NODE_ENV
-    delete process.env.DEBUG
     delete process.env.APP_SECRET_KEY
     delete process.env.APP_LOGGER_LEVELS
     delete process.env.APP_LOGGER_TAG
@@ -61,22 +59,6 @@ describe('ConfigLoader', () => {
     const config = loadConfig()
 
     expect(config.app.environment).toBe('production')
-  })
-
-  it('should override debug with DEBUG=true', () => {
-    process.env.DEBUG = 'true'
-
-    const config = loadConfig()
-
-    expect(config.app.debug).toBe(true)
-  })
-
-  it('should not override debug when DEBUG=false', () => {
-    process.env.DEBUG = 'false'
-
-    const config = loadConfig()
-
-    expect(config.app.debug).toBe(false)
   })
 
   it('should override secretKey with APP_SECRET_KEY', () => {
