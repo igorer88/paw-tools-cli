@@ -6,6 +6,7 @@ settings:
 
 overrides:
   file-type: '>=21.3.2'
+  tar: '>=7.5.10'
 
 importers:
 
