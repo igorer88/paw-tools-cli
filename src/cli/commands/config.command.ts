@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { Command, CommandRunner, Option } from 'nest-commander'
 
@@ -8,6 +8,20 @@ import { FileHandlerService } from '@/shared/file-handler'
 
 interface ConfigCommandOptions {
   config?: string
+  export?: string
+}
+
+const DEFAULT_CONFIG = {
+  app: {
+    environment: 'development',
+    secretKey: '',
+    logger: {
+      level: 'debug',
+      tag: false,
+      date: false,
+      format: 'pretty'
+    }
+  }
 }
 
 @Command({
@@ -44,6 +58,17 @@ export class ConfigCommand extends CommandRunner {
     }
   }
 
+  private async exportConfig(path: string): Promise<void> {
+    if (this.fileHandler.exists(path)) {
+      throw new Error(`Config file already exists: ${path}`)
+    }
+
+    const dir = dirname(path)
+    await this.fileHandler.ensureDir(dir)
+    await this.fileHandler.writeJson(path, DEFAULT_CONFIG)
+    this.consoleService.success(`Config exported to: ${path}`)
+  }
+
   @Option({
     flags: '-c, --config <path>',
     description: 'Path to custom config file'
@@ -52,8 +77,26 @@ export class ConfigCommand extends CommandRunner {
     return val
   }
 
+  @Option({
+    flags: '-e, --export [path]',
+    description: 'Export default config (default: ./config/config.json)'
+  })
+  parseExport(val?: string): string {
+    const path = typeof val === 'string' ? val : undefined
+    return path || join(process.cwd(), 'config', 'config.json')
+  }
+
   async run(_passedParam: string[], options?: ConfigCommandOptions): Promise<void> {
     try {
+      if (options?.export !== undefined) {
+        const exportPath =
+          typeof options.export === 'string'
+            ? options.export
+            : join(process.cwd(), 'config', 'config.json')
+        await this.exportConfig(exportPath)
+        return
+      }
+
       const configPath = this.resolveConfigPath(options?.config)
       const config = await this.loadConfig(configPath)
       this.validateConfig(config)
