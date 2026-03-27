@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 
-import { loadConfig } from './config.loader'
+import { loadConfig } from './config-loader'
 
 jest.mock('node:fs')
 

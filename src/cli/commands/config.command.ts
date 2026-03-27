@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path'
 
 import { Command, CommandRunner, Option } from 'nest-commander'
-
+import { DEFAULT_CONFIG } from '@/shared/config/default-config'
 import { ConsoleService } from '@/shared/console'
 import { ExitCodes } from '@/shared/exit-codes'
 import { FileHandlerService } from '@/shared/file-handler'
@@ -9,19 +9,6 @@ import { FileHandlerService } from '@/shared/file-handler'
 interface ConfigCommandOptions {
   config?: string
   export?: string
-}
-
-const DEFAULT_CONFIG = {
-  app: {
-    environment: 'development',
-    secretKey: '',
-    logger: {
-      level: 'debug',
-      tag: false,
-      date: false,
-      format: 'pretty'
-    }
-  }
 }
 
 @Command({
