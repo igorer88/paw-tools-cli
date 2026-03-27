@@ -2,32 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { ConsoleService } from '@/shared/console'
-
-export interface AppConfig {
-  app: {
-    environment: string
-    secretKey: string
-    logger: {
-      level: string
-      tag: boolean
-      date: boolean
-      format: string
-    }
-  }
-}
-
-const DEFAULT_CONFIG: AppConfig = {
-  app: {
-    environment: 'development',
-    secretKey: '',
-    logger: {
-      level: 'debug',
-      tag: false,
-      date: false,
-      format: 'pretty'
-    }
-  }
-}
+import { type AppConfig, DEFAULT_CONFIG } from './default-config'
 
 export const loadConfig = (): AppConfig => {
   const configPath = join(process.cwd(), 'config', 'config.json')
