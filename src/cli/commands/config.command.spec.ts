@@ -6,7 +6,9 @@ import { ConfigCommand } from './config.command'
 
 const mockFileHandler = {
   exists: jest.fn().mockReturnValue(true),
-  readJson: jest.fn().mockResolvedValue({ app: { debug: true } })
+  readJson: jest.fn().mockResolvedValue({ app: { debug: true } }),
+  writeJson: jest.fn().mockResolvedValue(undefined),
+  ensureDir: jest.fn().mockResolvedValue(undefined)
 }
 
 const mockConsoleService = {
@@ -133,6 +135,54 @@ describe('ConfigCommand', () => {
     })
   })
 
+  describe('parseExport', () => {
+    it('should return custom path when provided', () => {
+      const result = command.parseExport('./custom.json')
+      expect(result).toBe('./custom.json')
+    })
+
+    it('should return default path when no value', () => {
+      const result = command.parseExport()
+      expect(result).toContain('config')
+      expect(result).toContain('config.json')
+    })
+
+    it('should return default path for empty string', () => {
+      const result = command.parseExport('')
+      expect(result).toContain('config')
+    })
+  })
+
+  describe('exportConfig', () => {
+    it('should export config to specified path', async () => {
+      mockFileHandler.exists.mockReturnValue(false)
+
+      await (command as Testable<ConfigCommand>)['exportConfig']('/tmp/test.json')
+
+      expect(mockFileHandler.ensureDir).toHaveBeenCalledWith('/tmp')
+      expect(mockFileHandler.writeJson).toHaveBeenCalledWith(
+        '/tmp/test.json',
+        expect.objectContaining({
+          app: expect.objectContaining({
+            environment: 'development',
+            logger: expect.objectContaining({
+              level: 'debug'
+            })
+          })
+        })
+      )
+      expect(mockConsoleService.success).toHaveBeenCalledWith('Config exported to: /tmp/test.json')
+    })
+
+    it('should throw error when file already exists', async () => {
+      mockFileHandler.exists.mockReturnValue(true)
+
+      await expect(
+        (command as Testable<ConfigCommand>)['exportConfig']('/existing.json')
+      ).rejects.toThrow('Config file already exists: /existing.json')
+    })
+  })
+
   describe('run', () => {
     it('should output success message', async () => {
       await command.run([])
@@ -191,6 +241,55 @@ describe('ConfigCommand', () => {
 
       expect(processExitSpy).toHaveBeenCalledWith(1)
       expect(mockConsoleService.error).toHaveBeenCalled()
+    })
+  })
+
+  describe('run with --export', () => {
+    beforeEach(() => {
+      mockFileHandler.exists.mockReturnValue(false)
+      mockFileHandler.writeJson.mockClear()
+      mockConsoleService.success.mockClear()
+    })
+
+    it('should export to default path when flag used without value', async () => {
+      await command.run([], { export: '' as unknown as string })
+
+      expect(mockFileHandler.writeJson).toHaveBeenCalled()
+      expect(mockConsoleService.success).toHaveBeenCalledWith(
+        expect.stringContaining('Config exported to:')
+      )
+    })
+
+    it('should export to custom path when path provided', async () => {
+      await command.run([], { export: './custom-config.json' })
+
+      expect(mockFileHandler.ensureDir).toHaveBeenCalled()
+      expect(mockFileHandler.writeJson).toHaveBeenCalledWith(
+        './custom-config.json',
+        expect.objectContaining({
+          app: expect.objectContaining({
+            environment: 'development'
+          })
+        })
+      )
+    })
+
+    it('should exit with error when export file already exists', async () => {
+      mockFileHandler.exists.mockReturnValue(true)
+
+      await command.run([], { export: './existing.json' })
+
+      expect(processExitSpy).toHaveBeenCalledWith(1)
+      expect(mockConsoleService.error).toHaveBeenCalled()
+    })
+
+    it('should use default path when export is truthy but not a string', async () => {
+      await command.run([], { export: true as unknown as string })
+
+      expect(mockFileHandler.writeJson).toHaveBeenCalled()
+      expect(mockConsoleService.success).toHaveBeenCalledWith(
+        expect.stringContaining('Config exported to:')
+      )
     })
   })
 })
