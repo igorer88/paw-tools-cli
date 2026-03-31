@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.22
+# syntax=docker/dockerfile:1.23
 
 # Define build arguments for Node.js version, pnpm registry, system user, and group ID
 ARG NODE_VERSION=lts-alpine
