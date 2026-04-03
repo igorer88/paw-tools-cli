@@ -68,6 +68,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.key
 credentials.json
 
+# Package tarballs
+*.tgz
+paw-tools-cli-*.tgz
+
 # AI Tools
 .opencode
 opencode.json
