@@ -1,5 +1,0 @@
-export * from './base.error'
-export * from './error.interface'
-export * from './error.module'
-export * from './error.service'
-export * from './exception.filter'

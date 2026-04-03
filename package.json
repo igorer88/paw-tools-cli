@@ -5,6 +5,9 @@
   "author": "Igor Escalona",
   "private": true,
   "license": "MIT",
+  "bin": {
+    "paw-tools": "dist/main.js"
+  },
   "engines": {
     "node": ">=24.x",
     "pnpm": ">=10.x"
@@ -17,30 +20,34 @@
   ],
   "scripts": {
     "setup:agents": "node ./config/scripts/sync-agents.mjs",
-    "generate:secret": "node ./config/scripts/generate-secret-key.mjs",
     "build": "nest build",
     "cli": "node dist/main",
-    "cli:dev": "ts-node src/main.ts",
+    "cli:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "lint": "biome check --write --no-errors-on-unmatched",
     "format": "biome format --write",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "rimraf coverage && jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e:cov": "rimraf coverage-e2e && jest --config ./test/jest-e2e.json --coverage",
+    "test:all:cov": "pnpm test:cov && pnpm test:e2e:cov",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "prepare": "husky"
   },
   "dependencies": {
+    "@clack/prompts": "^1.1.0",
     "@nestjs/common": "^11.1.16",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.16",
-    "@nestjs/mapped-types": "2.1.0",
+    "@nestjs/mapped-types": "2.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "joi": "^18.0.2",
+    "consola": "^3.4.2",
+    "joi": "^18.1.1",
     "nest-commander": "^3.3.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
@@ -49,7 +56,7 @@
     "@nestjs/schematics": "^11.0.9",
     "@nestjs/testing": "^11.1.16",
     "@swc/cli": "^0.8.0",
-    "@swc/core": "^1.15.18",
+    "@swc/core": "^1.15.21",
     "@types/hapi__joi": "^17.1.15",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",

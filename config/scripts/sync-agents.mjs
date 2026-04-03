@@ -295,7 +295,8 @@ function createSymlink(source, target) {
   }
 
   const symlinkType = getSymlinkType(sourcePath)
-  fs.symlinkSync(sourcePath, targetPath, symlinkType)
+  const relativeSource = path.relative(targetDir, sourcePath)
+  fs.symlinkSync(relativeSource, targetPath, symlinkType)
 }
 
 function createSymlinksForTool(toolKey) {

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common'
 
-import { GreetCommand } from './commands'
+import { ConfigCommand, GenerateSecretCommand, InitProjectCommand } from './commands'
 
 @Module({
-  providers: [GreetCommand]
+  providers: [ConfigCommand, GenerateSecretCommand, InitProjectCommand]
 })
 export class CliModule {}

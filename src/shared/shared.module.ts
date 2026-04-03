@@ -1,9 +1,12 @@
 import { Global, Module } from '@nestjs/common'
 
-import { ErrorModule } from './errors/error.module'
+import { ConsoleModule } from './console'
+import { FileHandlerModule } from './file-handler'
+import { ProcessModule } from './process'
+import { PromptModule } from './prompt'
 
 @Global()
 @Module({
-  imports: [ErrorModule]
+  imports: [ConsoleModule, FileHandlerModule, ProcessModule, PromptModule]
 })
 export class SharedModule {}
