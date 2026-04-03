@@ -70,7 +70,8 @@
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "yaml": "^2.8.3"
   },
   "lint-staged": {
     "*.{ts,js}": [
@@ -81,13 +82,15 @@
   "pnpm": {
     "overrides": {
       "file-type": ">=21.3.2",
-      "tar": ">=7.5.10"
-    },
-    "onlyBuiltDependencies": [
-      "@nestjs/core",
-      "@swc/core",
-      "sqlite3",
-      "unrs-resolver"
-    ]
+      "tar": ">=7.5.11",
+      "lodash": ">=4.18.0",
+      "picomatch": ">=4.0.4",
+      "path-to-regexp": ">=8.4.0",
+      "brace-expansion": ">=5.0.5",
+      "minimatch": ">=3.1.5 <4.0.0",
+      "handlebars": ">=4.7.9",
+      "yaml": ">=2.8.3",
+      "ajv": ">=8.18.0"
+    }
   }
 }
