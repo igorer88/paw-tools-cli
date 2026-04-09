@@ -1,6 +1,5 @@
 export const DEFAULT_CONFIG = {
   app: {
-    environment: 'development',
     secretKey: '',
     logger: {
       level: 'debug',
