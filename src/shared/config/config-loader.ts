@@ -37,7 +37,6 @@ export const loadConfig = (): AppConfig => {
 function applyEnvOverrides(config: AppConfig): AppConfig {
   return {
     app: {
-      environment: process.env.NODE_ENV || config.app.environment,
       secretKey: process.env.APP_SECRET_KEY || config.app.secretKey,
       logger: {
         level: process.env.APP_LOGGER_LEVELS || config.app.logger.level,

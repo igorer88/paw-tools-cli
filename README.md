@@ -54,7 +54,6 @@ Configuration is managed via `config/config.json` with environment variable over
 ```json
 {
   "app": {
-    "environment": "development",
     "secretKey": "",
     "logger": {
       "level": "debug",
@@ -66,16 +65,30 @@ Configuration is managed via `config/config.json` with environment variable over
 }
 ```
 
+### Config Command Options
+
+| Option | Description |
+|--------|-------------|
+| `paw-tools config` | Load and validate config file |
+| `paw-tools config -c <path>` | Load config from custom path |
+| `paw-tools config -l` / `--list` | List all config values |
+| `paw-tools config -g <key>` / `--get <key>` | Get specific config value (e.g., `app.logger.level`) |
+| `paw-tools config -s <key>=<value>` / `--set <key>=<value>` | Set config value in file |
+| `paw-tools config --validate` | Validate config without loading |
+| `paw-tools config -e` / `--export` | Export default config template |
+| `PAW_CONFIG=<path> paw-tools config` | Use env var for config path |
+
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NODE_ENV` | development | Environment (development, production, test) |
+| `NODE_ENV` | development | Environment (development, production, test) - CLI-only, not in config |
 | `APP_SECRET_KEY` | - | App secret key (optional) |
 | `APP_LOGGER_LEVELS` | debug | Logger levels (0-7 or level names) |
 | `APP_LOGGER_TAG` | false | Show `[paw-tools]` prefix in logs |
 | `APP_LOGGER_DATE` | false | Show timestamps in logs |
 | `APP_LOGGER_FORMAT` | pretty | Output format (pretty, json) |
+| `PAW_CONFIG` | - | Custom config file path |
 
 ## Development
 
