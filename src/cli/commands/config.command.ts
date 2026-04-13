@@ -136,10 +136,16 @@ export class ConfigCommand extends CommandRunner {
     return String(value)
   }
 
-  private async listConfig(configPath: string, config: Record<string, unknown>): Promise<void> {
+  private async listConfig(
+    configPath: string,
+    config: Record<string, unknown>,
+    usingDefaults = false
+  ): Promise<void> {
     const mergedConfig = this.buildMergedConfig(config)
 
-    this.consoleService.info(`Config file: ${configPath}`)
+    this.consoleService.info(
+      usingDefaults ? `Config file not found, using defaults` : `Config file: ${configPath}`
+    )
     this.consoleService.log('')
 
     const printSection = (section: string, obj: unknown, prefix = ''): void => {
@@ -165,7 +171,8 @@ export class ConfigCommand extends CommandRunner {
   private async getConfigValueByKey(
     key: string,
     _configPath: string,
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    usingDefaults = false
   ): Promise<void> {
     const mergedConfig = this.buildMergedConfig(config)
     const value = this.getConfigValue(mergedConfig, key)
@@ -174,7 +181,8 @@ export class ConfigCommand extends CommandRunner {
       throw new Error(`Key not found: ${key}`)
     }
 
-    this.consoleService.log(this.formatValue(value))
+    const output = this.formatValue(value)
+    this.consoleService.log(usingDefaults ? `${output} (defaults)` : output)
   }
 
   private async setConfigValueInFile(
@@ -256,21 +264,37 @@ export class ConfigCommand extends CommandRunner {
         options?.set ||
         options?.validate !== undefined
       ) {
-        const config = await this.loadConfig(configPath)
-        this.validateConfig(config)
+        let config: Record<string, unknown>
+        let usingDefaults = false
+
+        try {
+          config = await this.loadConfig(configPath)
+          this.validateConfig(config)
+        } catch (error) {
+          if ((error as Error).message.includes('not found')) {
+            config = DEFAULT_CONFIG
+            usingDefaults = true
+          } else {
+            throw error
+          }
+        }
 
         if (options?.validate !== undefined) {
-          this.consoleService.success(`Configuration is valid: ${configPath}`)
+          this.consoleService.success(
+            usingDefaults
+              ? `Configuration is valid (using defaults): ${configPath}`
+              : `Configuration is valid: ${configPath}`
+          )
           return
         }
 
         if (options?.list !== undefined) {
-          await this.listConfig(configPath, config)
+          await this.listConfig(configPath, config, usingDefaults)
           return
         }
 
         if (options?.get) {
-          await this.getConfigValueByKey(options.get, configPath, config)
+          await this.getConfigValueByKey(options.get, configPath, config, usingDefaults)
           return
         }
 
