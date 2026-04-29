@@ -65,4 +65,44 @@ describe('ProcessService', () => {
       expect(() => validator.validate('echo $PATH')).toThrow()
     })
   })
+
+  describe('which', () => {
+    it('should return path for installed command', () => {
+      const result = service.which('git')
+
+      expect(result).toBeTruthy()
+      expect(result).toContain('git')
+    })
+
+    it('should return null for non-existent command', () => {
+      const result = service.which('nonexistent-command-xyz-12345')
+
+      expect(result).toBeNull()
+    })
+
+    it('should throw on dangerous command name', () => {
+      expect(() => service.which('echo; rm -rf')).toThrow()
+    })
+  })
+
+  describe('getVersion', () => {
+    it('should return version for git', async () => {
+      const version = await service.getVersion('git')
+
+      expect(version).toMatch(/\d+\.\d+\.\d+/)
+    })
+
+    it('should return null for non-existent command', async () => {
+      const version = await service.getVersion('nonexistent-command-xyz-12345')
+
+      expect(version).toBeNull()
+    })
+
+    it('should use custom args', async () => {
+      const version = await service.getVersion('node', ['--version'])
+
+      expect(version).toBeTruthy()
+      expect(version).toMatch(/\d+/)
+    })
+  })
 })
