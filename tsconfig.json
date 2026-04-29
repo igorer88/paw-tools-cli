@@ -22,7 +22,8 @@
     "types": ["node", "jest"],
     "paths": {
       "@/": ["src/"],
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@mocks/*": ["test/__mocks__/*"]
     },
     "plugins": [
       {

@@ -1,3 +1,4 @@
+import { mockConsoleService, mockProcessService } from '@mocks/shared'
 import { CommandRunner } from 'nest-commander'
 import { ConsoleService } from '@/shared/console'
 import { DependencyService } from '@/shared/dependency'
@@ -7,15 +8,7 @@ import { DoctorCommand } from './doctor.command'
 
 // Mock the dependencies
 jest.mock('@/shared/console', () => ({
-  ConsoleService: jest.fn().mockImplementation(() => ({
-    info: jest.fn(),
-    success: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    log: jest.fn(),
-    fail: jest.fn(),
-    debug: jest.fn()
-  }))
+  ConsoleService: jest.fn().mockImplementation(() => mockConsoleService)
 }))
 
 jest.mock('@/shared/dependency', () => ({
@@ -26,7 +19,7 @@ jest.mock('@/shared/dependency', () => ({
 }))
 
 jest.mock('@/shared/process', () => ({
-  ProcessService: jest.fn()
+  ProcessService: jest.fn().mockImplementation(() => mockProcessService)
 }))
 
 // Mock process.exit to be a no-op

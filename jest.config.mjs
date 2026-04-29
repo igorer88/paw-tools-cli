@@ -10,6 +10,7 @@ export default {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^@mocks/(.*)$': '<rootDir>/../test/__mocks__/$1',
     '^@clack/prompts$': '<rootDir>/../test/__mocks__/@clack/prompts.ts',
   },
   coverageThreshold: {
