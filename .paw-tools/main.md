@@ -148,6 +148,7 @@ src/
 ### Method Ordering (class organization)
 
 Class members should be ordered:
+
 1. `readonly` properties (injected dependencies)
 2. Constructor (dependency injection)
 3. Private methods (helpers, business logic)
@@ -284,7 +285,7 @@ All file operations MUST use `FileHandlerService`. Never use `fs` module directl
 
 ### Location
 
-```
+```text
 src/shared/file-handler/
 ├── interfaces/
 │   ├── file-reader.interface.ts
@@ -319,7 +320,7 @@ export class MyCommand extends CommandRunner {
 ### Available Methods
 
 | Interface | Method | Description |
-|-----------|--------|-------------|
+| ----------- | -------- | ------------- |
 | FileReader | `readFile(path, encoding?)` | Read file as string |
 | FileReader | `readJson<T>(path)` | Read and parse JSON |
 | FileWriter | `writeFile(path, content)` | Write string to file |
@@ -332,7 +333,7 @@ export class MyCommand extends CommandRunner {
 
 ### File Structure After Refactor
 
-```
+```text
 src/shared/file-handler/
 ├── interfaces/
 │   ├── file-reader.interface.ts    # Read operations
@@ -351,7 +352,7 @@ All child process operations MUST use `ProcessService`. Never use `node:child_pr
 
 ### Location
 
-```
+```text
 src/shared/process/
 ├── interfaces/
 │   ├── executor.interface.ts
@@ -386,7 +387,7 @@ export class MyCommand extends CommandRunner {
 ### Available Methods
 
 | Method | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `exec(command)` | Execute command asynchronously, returns `{ stdout, stderr, exitCode, error }` |
 | `execSync(command)` | Execute command synchronously, returns stdout string |
 | `spawn(command, args)` | Spawn a child process, returns ChildProcess |
@@ -414,7 +415,7 @@ All CLI output MUST use `ConsoleService`. Never use `console.log`, `console.warn
 
 ### Location
 
-```
+```text
 src/shared/console/
 ├── interfaces/
 │   ├── logger.interface.ts
@@ -449,7 +450,7 @@ export class MyCommand extends CommandRunner {
 ### Available Methods
 
 | Method | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `info(message, ...args)` | General informational messages |
 | `success(message, ...args)` | Success messages (green) |
 | `warn(message, ...args)` | Warning messages (yellow) |
@@ -467,7 +468,7 @@ export class MyCommand extends CommandRunner {
 Configure logging behavior with environment variables:
 
 | Variable | Options | Default | Description |
-|----------|---------|---------|-------------|
+| ---------- | --------- | --------- | ------------- |
 | `APP_LOGGER_LEVELS` | `0-7` or `fatal`, `error`, `warn`, `log`, `info`, `success`, `debug`, `silent` | `3` (info) | Minimum log level |
 | `APP_LOGGER_TAG` | `true`/`false` | `false` | Show `[paw-tools]` prefix |
 | `APP_LOGGER_DATE` | `true`/`false` | `false` | Show timestamps |
@@ -476,7 +477,7 @@ Configure logging behavior with environment variables:
 ### Log Levels
 
 | Level | Name | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | 0 | fatal | Only fatal errors |
 | 1 | error | Errors and fatal |
 | 2 | warn | Warnings and below |
@@ -511,7 +512,7 @@ All CLI prompts MUST use `PromptService`. Never use `@clack/prompts` directly in
 
 ### Location
 
-```
+```text
 src/shared/prompt/
 ├── interfaces/
 │   ├── text-prompter.interface.ts
@@ -561,7 +562,7 @@ export class MyCommand extends CommandRunner {
 ### Available Methods
 
 | Method | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `text(options)` | Prompt for text input with optional validation |
 | `select(options)` | Prompt for single selection from options |
 | `confirm(options)` | Prompt for yes/no confirmation |
@@ -571,6 +572,7 @@ export class MyCommand extends CommandRunner {
 ### Cancel Handling
 
 All prompts automatically handle user cancellation (Ctrl+C). When cancelled:
+
 1. Displays "Operation cancelled."
 2. Exits process with code 0
 
@@ -583,7 +585,7 @@ Shared validation functions for common patterns. Located in `src/shared/utils.he
 ### Available Functions
 
 | Function | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `validateKebabCase(value)` | Validates kebab-case (lowercase, numbers, hyphens) |
 | `validateSemver(value)` | Validates semver format (x.y.z) |
 | `validateCalver(value)` | Validates calver format (YYYY.M.PATCH) |
@@ -625,7 +627,7 @@ All test-related files MUST be placed in the `test/` folder. This includes:
 
 Mock files for external modules should be in `test/__mocks__/`:
 
-```
+```text
 test/
 ├── __mocks__/
 │   └── @clack/
@@ -635,6 +637,7 @@ test/
 ```
 
 The jest config maps mocks to `test/__mocks__/`:
+
 - Unit tests (`jest.config.mjs`): `moduleNameMapper` points to `<rootDir>/../test/__mocks__/`
 - E2E tests (`test/jest-e2e.json`): `moduleNameMapper` points to `<rootDir>/__mocks__/`
 

@@ -52,7 +52,7 @@ const TOOL_CONFIGS = {
  * OpenCode: { "mcp": { "name": { "type": "local", "command": ["node", ...] } } }
  */
 function convertMcpConfig(mcpConfig) {
-  if (!mcpConfig || !mcpConfig.mcpServers) {
+  if (!mcpConfig?.mcpServers) {
     return null
   }
 
@@ -301,7 +301,7 @@ function createSymlink(source, target) {
 
 function createSymlinksForTool(toolKey) {
   const config = TOOL_CONFIGS[toolKey]
-  if (!config || !config.links) {
+  if (!config?.links) {
     throw new Error(`No configuration found for tool: ${toolKey}`)
   }
 

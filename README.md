@@ -40,7 +40,7 @@ paw-tools <command>
 The CLI provides the following commands:
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `paw-tools config` | View and update configuration |
 | `paw-tools generate-secret` | Generate secret keys |
 | `paw-tools init-project` | Initialize new projects from templates |
@@ -68,7 +68,7 @@ Configuration is managed via `config/config.json` with environment variable over
 ### Config Command Options
 
 | Option | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `paw-tools config` | Load and validate config file |
 | `paw-tools config -c <path>` | Load config from custom path |
 | `paw-tools config -l` / `--list` | List all config values |
@@ -81,7 +81,7 @@ Configuration is managed via `config/config.json` with environment variable over
 ### Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `NODE_ENV` | development | Environment (development, production, test) - CLI-only, not in config |
 | `APP_SECRET_KEY` | - | App secret key (optional) |
 | `APP_LOGGER_LEVELS` | debug | Logger levels (0-7 or level names) |

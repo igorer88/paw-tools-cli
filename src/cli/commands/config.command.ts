@@ -104,7 +104,7 @@ export class ConfigCommand extends CommandRunner {
     if (value === 'false') return false
     if (value === 'null') return null
     if (value === 'undefined') return undefined
-    if (!isNaN(Number(value)) && value.trim() !== '') return Number(value)
+    if (!Number.isNaN(Number(value)) && value.trim() !== '') return Number(value)
     return value
   }
 
@@ -165,7 +165,7 @@ export class ConfigCommand extends CommandRunner {
       }
     }
 
-    printSection('app', mergedConfig['app'])
+    printSection('app', mergedConfig.app)
   }
 
   private async getConfigValueByKey(
