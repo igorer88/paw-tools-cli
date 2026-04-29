@@ -1,16 +1,5 @@
+import { mockConsoleService } from '@mocks/shared'
 import { GenerateSecretCommand } from './generate-secret.command'
-
-const mockConsoleService = {
-  info: jest.fn(),
-  success: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-  start: jest.fn(),
-  done: jest.fn(),
-  fail: jest.fn(),
-  log: jest.fn()
-}
 
 jest.mock('@/shared/console', () => ({
   ConsoleService: jest.fn().mockImplementation(() => mockConsoleService)

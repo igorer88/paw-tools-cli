@@ -1,27 +1,8 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: bracket notation required for private access
 
+import { mockConsoleService, mockFileHandler } from '@mocks/shared'
 import type { Testable } from '@/typings/tests'
-
 import { ConfigCommand } from './config.command'
-
-const mockFileHandler = {
-  exists: jest.fn().mockReturnValue(true),
-  readJson: jest.fn().mockResolvedValue({ app: { debug: true } }),
-  writeJson: jest.fn().mockResolvedValue(undefined),
-  ensureDir: jest.fn().mockResolvedValue(undefined)
-}
-
-const mockConsoleService = {
-  info: jest.fn(),
-  success: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-  start: jest.fn(),
-  done: jest.fn(),
-  fail: jest.fn(),
-  log: jest.fn()
-}
 
 jest.mock('node:fs')
 jest.mock('@/shared/file-handler', () => ({
