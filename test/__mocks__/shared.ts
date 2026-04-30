@@ -21,7 +21,34 @@ export const mockFileHandler = {
   ensureDir: jest.fn().mockResolvedValue(undefined)
 }
 
-// Mock ProcessService
+// Mock ProcessService with version support for DependencyService tests
+export class MockProcessService {
+  private versionMap: Map<string, string> = new Map()
+  private existsMap: Map<string, boolean> = new Map()
+
+  setVersion(command: string, version: string): void {
+    this.versionMap.set(command, version)
+    this.existsMap.set(command, true)
+  }
+
+  setNotFound(command: string): void {
+    this.existsMap.set(command, false)
+  }
+
+  which(command: string): string | null {
+    return this.existsMap.get(command) ? `/usr/bin/${command}` : null
+  }
+
+  async getVersion(command: string): Promise<string> {
+    return this.versionMap.get(command) || ''
+  }
+
+  exec = jest.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
+  execSync = jest.fn().mockReturnValue('')
+  spawn = jest.fn()
+}
+
+// Keep the old mock for backwards compatibility
 export const mockProcessService = {
   exec: jest.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
   execSync: jest.fn().mockReturnValue(''),
