@@ -12,7 +12,9 @@ describe('App (e2e)', () => {
   })
 
   afterEach(async () => {
-    await module.close()
+    if (module) {
+      await module.close()
+    }
   })
 
   it('should compile the app module', async () => {
