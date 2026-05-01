@@ -5,7 +5,7 @@ import { AppModule } from './app.module'
 import { checkDependencies } from './setup'
 import { ExitCodes } from './shared/exit-codes'
 
-async function bootstrap(): Promise<void> {
+export async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule)
 
   const hasMissingDeps = await checkDependencies(app)

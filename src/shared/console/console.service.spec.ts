@@ -1,9 +1,10 @@
+import { mockConsola } from '@mocks/consola'
 import { createConsola } from 'consola'
 
 import { ConsoleService } from './console.service'
 
 jest.mock('consola', () => ({
-  createConsola: jest.fn()
+  createConsola: jest.fn().mockReturnValue(mockConsola)
 }))
 
 describe('ConsoleService', () => {
