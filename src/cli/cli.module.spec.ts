@@ -10,11 +10,7 @@ jest.mock('./commands', () => ({
   InitProjectCommand: class MockInitProjectCommand {}
 }))
 
-jest.mock('nest-commander', () => ({
-  CommandFactory: {
-    run: jest.fn().mockResolvedValue(undefined)
-  }
-}))
+jest.mock('nest-commander', () => require('@mocks/nest-commander'))
 
 describe('CliModule', () => {
   it('should compile the module', async () => {
