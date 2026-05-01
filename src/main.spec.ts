@@ -1,75 +1,144 @@
-import { NestFactory } from '@nestjs/core'
+import { mockConsoleService, mockDependencyService } from '@mocks/shared'
 import { CommandFactory } from 'nest-commander'
 
-import { AppModule } from './app.module'
+import { REQUIRED_DEPENDENCIES } from './config/constants/dependencies.constants'
 import { ExitCodes } from './shared/exit-codes'
 
-jest.mock('@nestjs/core', () => ({
-  NestFactory: {
-    createApplicationContext: jest.fn()
-  }
-}))
-
-jest.mock('nest-commander', () => ({
-  CommandFactory: {
-    run: jest.fn()
-  }
-}))
+jest.mock('nest-commander', () => require('@mocks/nest-commander'))
 
 jest.mock('./app.module', () => ({
   AppModule: class AppModule {}
 }))
 
-jest.mock('./setup', () => ({
-  checkDependencies: jest.fn()
-}))
-
-const mockNestFactory = NestFactory as jest.Mocked<typeof NestFactory>
 const mockCommandFactory = CommandFactory as jest.Mocked<typeof CommandFactory>
 
 describe('bootstrap', () => {
   let exitSpy: jest.SpyInstance
-  let mockCheckDeps: jest.Mock
+  let originalArgv: string[]
 
-  beforeAll(async () => {
-    const setup = await import('./setup')
-    mockCheckDeps = setup.checkDependencies as jest.Mock
-  })
+  const mockApp = {
+    close: jest.fn().mockResolvedValue(undefined),
+    get: jest.fn()
+  }
 
   beforeEach(() => {
     jest.clearAllMocks()
-    const mockApp = {
-      close: jest.fn().mockResolvedValue(undefined)
-    }
-    mockNestFactory.createApplicationContext.mockResolvedValue(mockApp as never)
-    mockCommandFactory.run.mockResolvedValue(undefined)
+    originalArgv = [...process.argv]
+    mockCommandFactory.createWithoutRunning.mockResolvedValue(mockApp as never)
+    mockCommandFactory.runApplication.mockResolvedValue(undefined)
     exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never)
+
+    mockApp.get.mockImplementation((token: unknown) => {
+      if ((token as any).name === 'DependencyService') return mockDependencyService
+      if ((token as any).name === 'ConsoleService') return mockConsoleService
+      return undefined
+    })
   })
 
   afterEach(() => {
+    process.argv = originalArgv
     exitSpy.mockRestore()
   })
 
-  it('should create app context and run command factory when deps are ok', async () => {
-    mockCheckDeps.mockResolvedValue(false)
+  it('should create app and run when deps are OK', async () => {
+    process.argv = ['node', 'cli']
+    mockDependencyService.check.mockResolvedValue({ missing: [], warnings: [] })
 
-    const { bootstrap } = require('./main')
+    const { bootstrap } = await import('./main')
     await bootstrap()
 
-    expect(mockNestFactory.createApplicationContext).toHaveBeenCalledWith(AppModule)
-    expect(mockCheckDeps).toHaveBeenCalled()
-    expect(mockCommandFactory.run).toHaveBeenCalledWith(AppModule)
+    expect(mockCommandFactory.createWithoutRunning).toHaveBeenCalled()
+    expect(mockDependencyService.check).toHaveBeenCalledWith(REQUIRED_DEPENDENCIES)
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
     expect(process.exit).not.toHaveBeenCalled()
   })
 
-  it('should exit with error code when dependencies are missing', async () => {
-    mockCheckDeps.mockResolvedValue(true)
+  it('should exit with error when dependencies are missing', async () => {
+    process.argv = ['node', 'cli']
+    mockDependencyService.check.mockResolvedValue({
+      missing: [
+        {
+          name: 'git',
+          requiredVersion: '>=2.30',
+          installedVersion: null,
+          installedPath: null,
+          isMet: false
+        }
+      ],
+      warnings: []
+    })
 
-    const { bootstrap } = require('./main')
+    const { bootstrap } = await import('./main')
     await bootstrap()
 
-    expect(mockNestFactory.createApplicationContext).toHaveBeenCalled()
-    expect(mockCheckDeps).toHaveBeenCalled()
+    expect(mockCommandFactory.createWithoutRunning).toHaveBeenCalled()
+    expect(mockDependencyService.check).toHaveBeenCalled()
+    expect(mockConsoleService.error).toHaveBeenCalledWith('Missing dependencies:')
+    expect(mockConsoleService.error).toHaveBeenCalledWith('  - git (required: >=2.30)')
+    expect(mockApp.close).toHaveBeenCalled()
     expect(process.exit).toHaveBeenCalledWith(ExitCodes.ERROR)
+    expect(mockCommandFactory.runApplication).not.toHaveBeenCalled()
+  })
+
+  it('should show warnings but continue when deps have warnings', async () => {
+    process.argv = ['node', 'cli']
+    mockDependencyService.check.mockResolvedValue({
+      missing: [],
+      warnings: [
+        {
+          name: 'git',
+          installedVersion: '2.20.0',
+          requiredVersion: '>=2.30',
+          installedPath: '/usr/bin/git'
+        }
+      ]
+    })
+
+    const { bootstrap } = await import('./main')
+    await bootstrap()
+
+    expect(mockConsoleService.warn).toHaveBeenCalledWith('Dependency warnings:')
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
+    expect(process.exit).not.toHaveBeenCalled()
+  })
+
+  it('should skip check when --help is provided', async () => {
+    process.argv = ['node', 'cli', '--help']
+
+    const { bootstrap } = await import('./main')
+    await bootstrap()
+
+    expect(mockDependencyService.check).not.toHaveBeenCalled()
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
+  })
+
+  it('should skip check when --version is provided', async () => {
+    process.argv = ['node', 'cli', '--version']
+
+    const { bootstrap } = await import('./main')
+    await bootstrap()
+
+    expect(mockDependencyService.check).not.toHaveBeenCalled()
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
+  })
+
+  it('should skip check when -h is provided', async () => {
+    process.argv = ['node', 'cli', '-h']
+
+    const { bootstrap } = await import('./main')
+    await bootstrap()
+
+    expect(mockDependencyService.check).not.toHaveBeenCalled()
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
+  })
+
+  it('should skip check when -v is provided', async () => {
+    process.argv = ['node', 'cli', '-v']
+
+    const { bootstrap } = await import('./main')
+    await bootstrap()
+
+    expect(mockDependencyService.check).not.toHaveBeenCalled()
+    expect(mockCommandFactory.runApplication).toHaveBeenCalledWith(mockApp)
   })
 })
