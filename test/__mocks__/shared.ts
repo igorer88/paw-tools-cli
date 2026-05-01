@@ -63,3 +63,9 @@ export const mockPromptService = {
   spinner: jest.fn(),
   spinnerMessage: jest.fn(() => ({ start: jest.fn(), stop: jest.fn() }))
 }
+
+// Mock DependencyService
+export const mockDependencyService = {
+  check: jest.fn(),
+  which: jest.fn()
+}

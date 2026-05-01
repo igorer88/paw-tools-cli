@@ -2,8 +2,6 @@ import * as clack from '@clack/prompts'
 
 import { PromptService } from './prompt.service'
 
-jest.mock('@clack/prompts')
-
 describe('PromptService', () => {
   let service: PromptService
 
