@@ -8,3 +8,10 @@ export const mockConsola = {
   fail: jest.fn(),
   log: jest.fn()
 }
+
+const mockInstance = {
+  ...mockConsola,
+  withTag: jest.fn().mockReturnValue(mockConsola)
+}
+
+export const createConsola = jest.fn().mockReturnValue(mockInstance)

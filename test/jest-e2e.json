@@ -11,7 +11,8 @@
   ],
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1",
-    "^@clack/prompts$": "<rootDir>/__mocks__/@clack/prompts.ts"
+    "^@clack/prompts$": "<rootDir>/__mocks__/@clack/prompts.ts",
+    "^consola$": "<rootDir>/__mocks__/consola.ts"
   },
   "collectCoverageFrom": [
     "../src/**/*.ts",
